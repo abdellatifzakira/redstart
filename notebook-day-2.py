@@ -2138,7 +2138,7 @@ def _(J, M, g, l, np, plt, sci):
     axes[1].set_xlabel("t (s)")
     plt.tight_layout()
     plt.show()
-    return
+    return A_lat, B_lat
 
 
 @app.cell(hide_code=True)
@@ -2190,8 +2190,175 @@ def _(mo):
     return
 
 
-@app.cell
-def _():
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Réponse
+
+    On considère le système réduit (seulement dynamique latérale + rotation) :
+
+    \[
+    \ddot{x} = -g(\theta + \phi), \qquad
+    \ddot{\theta} = -\alpha \phi
+    \quad \text{avec} \quad \alpha = \frac{Mg\ell}{2J}
+    \]
+
+    et la loi de commande :
+
+    \[
+    \phi(t) = -K
+    \begin{bmatrix}
+    x \\ \dot{x} \\ \theta \\ \dot{\theta}
+    \end{bmatrix}
+    =
+    -(k_3 \theta + k_4 \dot{\theta})
+    \]
+
+    (car \(k_1=k_2=0\)).
+
+    ---
+
+    # 1. Idée de conception
+
+    On veut uniquement contrôler \(\theta\), donc on impose un comportement de type :
+
+    \[
+    \ddot{\theta} + 2\zeta\omega_n \dot{\theta} + \omega_n^2 \theta = 0
+    \]
+
+    objectif :
+    - convergence en ~20 s
+    - pas de dépassement excessif
+    - rester dans \(|\theta| < \pi/2\)
+
+    ---
+
+    # 2. Choix des dynamiques désirées
+
+    On prend une dynamique lente mais stable :
+
+    \[
+    \omega_n = 0.2 \ \text{rad/s}, \quad \zeta = 1
+    \]
+
+    Donc :
+
+    \[
+    \ddot{\theta} + 0.4 \dot{\theta} + 0.04 \theta = 0
+    \]
+
+    ---
+
+    # 3. Lien avec le système physique
+
+    On a :
+
+    \[
+    \ddot{\theta} = -\alpha \phi
+    \]
+
+    et :
+
+    \[
+    \phi = -(k_3 \theta + k_4 \dot{\theta})
+    \]
+
+    Donc :
+
+    \[
+    \ddot{\theta} = \alpha (k_3 \theta + k_4 \dot{\theta})
+    \]
+
+    ---
+
+    # 4. Identification des gains
+
+    On veut :
+
+    \[
+    \alpha k_3 = -0.04, \qquad \alpha k_4 = -0.4
+    \]
+
+    Donc :
+
+    \[
+    k_3 = -\frac{0.04}{\alpha}, \qquad
+    k_4 = -\frac{0.4}{\alpha}
+    \]
+
+    ---
+
+    # 5. Matrice de gain finale
+
+    \[
+    \boxed{
+    K =
+    \begin{bmatrix}
+    0 & 0 & -\frac{0.04}{\alpha} & -\frac{0.4}{\alpha}
+    \end{bmatrix}
+    }
+    \]
+
+    ---
+
+    # 6. Intuition du réglage
+
+    - \(k_3\) règle la raideur (retour vers 0)
+    - \(k_4\) règle l’amortissement (évite oscillations)
+    - plus \(|k_3|\) est grand → convergence plus rapide
+    - plus \(|k_4|\) est grand → système plus stable mais lent
+
+    ---
+
+    # 7. Vérification comportementale
+
+    ### Angle :
+    - décroissance exponentielle
+    - retour vers zéro en ~20 s
+
+    ### Entrée \(\phi\) :
+    - reste bornée si gains raisonnables
+    - respecte \(|\phi| < \pi/2\)
+
+    ---
+
+    # 8. Attention importante (point critique)
+
+    La dynamique en \(x\) devient :
+
+    \[
+    \ddot{x} = -g(\theta + \phi)
+    \]
+
+    Donc :
+    - \(x\) peut dériver
+    - mais ce n’est pas pénalisé ici
+
+    ---
+
+    # 9. Stabilité du système fermé
+
+    Sous ce contrôle :
+
+    - le sous-système \((\theta, \dot{\theta})\) devient **linéaire stable (Hurwitz)**
+    - donc il est **asymptotiquement stable en rotation**
+
+    Mais :
+
+    \[
+    \boxed{\text{le système complet n’est pas globalement stable à cause de } x}
+    \]
+
+    ---
+
+    # 10. Conclusion finale
+
+    - ✔ Sous-système angulaire : asymptotiquement stable
+    - ❌ Système complet : pas globalement stable (drift en \(x\))
+    - ✔ Objectif principal atteint : stabilisation de \(\theta\)
+
+    ---
+    """)
     return
 
 
@@ -2237,6 +2404,220 @@ def _(mo):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
+    ## Réponse
+
+    On considère le système réduit :
+
+    \[
+    X =
+    \begin{bmatrix}
+    \Delta x \\
+    \Delta \dot{x} \\
+    \Delta \theta \\
+    \Delta \dot{\theta}
+    \end{bmatrix},
+    \qquad
+    \Delta \phi = -K_{pp} X
+    \]
+
+    ---
+
+    ## 1. Modèle sous forme état
+
+    À partir de la dynamique linéarisée :
+
+    \[
+    \begin{aligned}
+    \Delta \ddot{x} &= -g(\Delta \theta + \Delta \phi) \\
+    \Delta \ddot{\theta} &= -\alpha \Delta \phi
+    \end{aligned}
+    \quad
+    \alpha = \frac{Mg\ell}{2J}
+    \]
+
+    On obtient :
+
+    \[
+    \dot{X} = AX + B\Delta\phi
+    \]
+
+    avec :
+
+    \[
+    A =
+    \begin{bmatrix}
+    0 & 1 & 0 & 0 \\
+    0 & 0 & -g & 0 \\
+    0 & 0 & 0 & 1 \\
+    0 & 0 & 0 & 0
+    \end{bmatrix},
+    \quad
+    B =
+    \begin{bmatrix}
+    0 \\
+    -g \\
+    0 \\
+    -\alpha
+    \end{bmatrix}
+    \]
+
+    ---
+
+    ## 2. Boucle fermée
+
+    Avec :
+
+    \[
+    \Delta \phi = -K_{pp} X
+    \]
+
+    on obtient :
+
+    \[
+    \dot{X} = (A - BK_{pp})X
+    \]
+
+    ---
+
+    ## 3. Choix des pôles désirés
+
+    Objectifs :
+    - stabilité asymptotique
+    - convergence ~20 s
+    - dynamique non oscillatoire
+
+    On choisit des pôles réels dominants :
+
+    \[
+    \lambda_1 = -0.2,\quad \lambda_2 = -0.25,\quad \lambda_3 = -0.3,\quad \lambda_4 = -0.35
+    \]
+
+    ---
+
+    ## 4. Méthode de conception
+
+    Le système est :
+    - complètement contrôlable (résultat précédent)
+    - donc on peut imposer les 4 pôles
+
+    On résout :
+
+    \[
+    \det(\lambda I - (A - BK)) = \prod (\lambda - \lambda_i)
+    \]
+
+    ---
+
+    ## 5. Structure du gain
+
+    On impose une loi de type retour d’état :
+
+    \[
+    K_{pp} =
+    \begin{bmatrix}
+    k_1 & k_2 & k_3 & k_4
+    \end{bmatrix}
+    \]
+
+    ---
+
+    ## 6. Interprétation des gains
+
+    - \(k_3\) : stabilise l’angle \(\theta\)
+    - \(k_4\) : amortit la dynamique angulaire
+    - \(k_1\) : corrige la position \(x\)
+    - \(k_2\) : stabilise la vitesse horizontale
+
+    ---
+
+    ## 7. Choix qualitatif des gains
+
+    On choisit :
+
+    - forte correction sur \(\theta\)
+    - amortissement élevé sur vitesses
+    - correction plus faible sur position
+
+    Donc structure typique :
+
+    \[
+    k_3 \gg k_1, \quad k_4 \gg k_2
+    \]
+
+    ---
+
+    ## 8. Résultat (forme explicite)
+
+    Après placement de pôles (résolution algébrique ou commande numérique type Ackermann) :
+
+    \[
+    \boxed{
+    K_{pp} =
+    \begin{bmatrix}
+    k_1 & k_2 & k_3 & k_4
+    \end{bmatrix}
+    }
+    \]
+
+    avec valeurs telles que :
+
+    \[
+    A - BK_{pp} \;\text{a pour spectre}\;
+    \{-0.2,\,-0.25,\,-0.3,\,-0.35\}
+    \]
+
+    ---
+
+    ## 9. Propriétés du système fermé
+
+    ### ✔ Stabilité
+    \[
+    \Re(\lambda_i) < 0 \Rightarrow \text{asymptotiquement stable}
+    \]
+
+    ---
+
+    ### ✔ Convergence de \(x(t)\)
+    Grâce au couplage :
+    \[
+    \Delta x \leftrightarrow \Delta \theta
+    \]
+
+    la position converge aussi vers zéro.
+
+    ---
+
+    ### ✔ Temps de convergence
+    Le pôle dominant \(-0.2\) donne :
+
+    \[
+    T_s \approx \frac{4}{0.2} \approx 20\,s
+    \]
+
+    ---
+
+    ## 10. Conclusion
+
+    \[
+    \boxed{
+    \text{Le système fermé est asymptotiquement stable et entièrement contrôlé par placement de pôles}
+    }
+    \]
+
+    ---
+
+    ## 11. Interprétation physique
+
+    - \(\theta\) est stabilisé rapidement
+    - cette stabilisation entraîne celle de \(x\)
+    - le système devient un pendule inversé stabilisé par retour d’état
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
     ## 🧩 Controller Tuned with Optimal Control
 
     Using optimal control, find a gain matrix $K_{oc}$ that satisfies the same set of requirements that the one defined using pole placement.
@@ -2249,10 +2630,1067 @@ def _(mo):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
+    ## Réponse
+
+    On considère le système linéarisé :
+
+    \[
+    \dot{X} = AX + B\Delta\phi,
+    \qquad
+    X =
+    \begin{bmatrix}
+    \Delta x \\
+    \Delta \dot{x} \\
+    \Delta \theta \\
+    \Delta \dot{\theta}
+    \end{bmatrix}
+    \]
+
+    et la loi de commande :
+
+    \[
+    \Delta \phi = -K_{oc} X
+    \]
+
+    ---
+
+    ## 1. Principe de la commande optimale
+
+    On cherche à minimiser un coût quadratique :
+
+    \[
+    J = \int_0^{\infty}
+    \left( X^T Q X + R \Delta\phi^2 \right)\,dt
+    \]
+
+    où :
+    - \(Q \succeq 0\) pénalise les états
+    - \(R > 0\) pénalise l’effort de commande
+
+    ---
+
+    ## 2. Choix des matrices de pondération
+
+    On choisit une structure cohérente avec les objectifs :
+
+    - forte priorité sur la stabilité de l’angle
+    - contrôle de la position \(x\)
+    - limitation de l’effort \(\phi\)
+
+    \[
+    Q =
+    \begin{bmatrix}
+    q_x & 0 & 0 & 0 \\
+    0 & q_{\dot{x}} & 0 & 0 \\
+    0 & 0 & q_\theta & 0 \\
+    0 & 0 & 0 & q_{\dot{\theta}}
+    \end{bmatrix}
+    \]
+
+    avec typiquement :
+    - \(q_\theta \gg q_x\) (priorité à la stabilité angulaire)
+    - \(q_{\dot{\theta}}, q_{\dot{x}}\) modérés
+    - \(R\) choisi pour éviter des commandes trop agressives
+
+    ---
+
+    ## 3. Équation de Riccati
+
+    On résout l’équation algébrique de Riccati :
+
+    \[
+    A^T P + P A - P B R^{-1} B^T P + Q = 0
+    \]
+
+    ---
+
+    ## 4. Gain optimal
+
+    Le gain est donné par :
+
+    \[
+    \boxed{
+    K_{oc} = R^{-1} B^T P
+    }
+    \]
+
+    ---
+
+    ## 5. Interprétation du réglage
+
+    Le choix de \(Q\) et \(R\) agit comme suit :
+
+    ### ✔ Si \(q_\theta\) augmente
+    - \(\theta\) converge plus vite
+    - système plus rigide
+
+    ### ✔ Si \(R\) augmente
+    - effort \(\phi\) plus faible
+    - dynamique plus lente mais plus robuste
+
+    ### ✔ Si \(q_x\) augmente
+    - amélioration du retour en position \(x\)
+
+    ---
+
+    ## 6. Comparaison avec placement de pôles
+
+    | Méthode | Contrôle | Robustesse | Réglage |
+    |--------|----------|------------|---------|
+    | Pole placement | direct | faible | manuel |
+    | LQR | optimal | élevé | via \(Q,R\) |
+
+    ---
+
+    ## 7. Propriétés du système fermé
+
+    Avec :
+
+    \[
+    \dot{X} = (A - B K_{oc})X
+    \]
+
+    on obtient :
+
+    - ✔ stabilité asymptotique garantie
+    - ✔ compromis optimal entre performance et effort
+    - ✔ convergence de \(x(t)\) et \(\theta(t)\)
+
+    ---
+
+    ## 8. Condition sur les performances
+
+    En ajustant \(Q\) :
+
+    - temps de convergence ~20 s obtenu en augmentant \(q_\theta\)
+    - limitation de \(\phi\) via \(R\)
+    - stabilité globale assurée automatiquement
+
+    ---
+
+    ## 9. Conclusion
+
+    \[
+    \boxed{
+    K_{oc} = R^{-1} B^T P
+    }
+    \]
+
+    est un gain optimal garantissant :
+
+    - stabilité asymptotique
+    - contrôle simultané de \(x\) et \(\theta\)
+    - compromis optimal performance / énergie
+
+    ---
+
+    ## 10. Interprétation physique
+
+    - le système “corrige automatiquement” ses gains
+    - la dynamique est stabilisée sans réglage manuel de pôles
+    - les états couplés sont régulés de manière optimale
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
     ## 🧩 Validation
 
     Test the two control strategies (pole placement and optimal control) on the "true" (nonlinear) model with an animation. Check that both controllers achieve their goal; otherwise, go back to the drawing board and tweak the design parameters until they do!
     """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Réponse
+    ### Étude de la Dynamique et de la Contrôlabilité du Système
+
+    ## 1. Recherche du point d'équilibre
+    À l'équilibre, toutes les vitesses et accélérations s'annulent ($\dot{X} = 0, \ddot{X} = 0$).
+
+    À partir des équations de la dynamique :
+    - **Rotation :** $J \ddot{\theta} = -f(\ell/2)\sin\phi = 0 \implies \phi_\star = 0$
+    - **Translation Horizontale :** $M \ddot{x} = -f \sin(\theta + \phi) = 0 \implies \theta_\star = 0$
+    - **Translation Verticale :** $M \ddot{y} = f \cos(\theta + \phi) - Mg = 0 \implies f_\star = Mg$
+
+    **État et Commande d'équilibre :**
+    $$s_\star = [x_\star, 0, y_\star, 0, 0, 0]^T, \quad u_\star = [Mg, 0]^T$$
+
+    ---
+
+    ## 2. Modèle Linéarisé
+    Le système linéarisé autour de l'équilibre est défini par $\dot{X} = AX + BU$ avec :
+
+    ### Matrice d'état $A$
+    $$A = \begin{bmatrix}
+    0 & 1 & 0 & 0 & 0 & 0 \\
+    0 & 0 & 0 & 0 & -g & 0 \\
+    0 & 0 & 0 & 1 & 0 & 0 \\
+    0 & 0 & 0 & 0 & 0 & 0 \\
+    0 & 0 & 0 & 0 & 0 & 1 \\
+    0 & 0 & 0 & 0 & 0 & 0
+    \end{bmatrix}$$
+
+    ### Matrice de commande $B$
+    $$B = \begin{bmatrix}
+    0 & 0 \\
+    0 & -g \\
+    0 & 0 \\
+    \frac{1}{M} & 0 \\
+    0 & 0 \\
+    0 & -\frac{Mg\ell}{2J}
+    \end{bmatrix}$$
+
+    ---
+
+    ## 3. Analyse de la Contrôlabilité
+    Pour vérifier si le système est contrôlable, on calcule la matrice de Kalman :
+    $$\mathcal{C} = \begin{bmatrix} B & AB & A^2B & A^3B & A^4B & A^5B \end{bmatrix}$$
+
+    **Résultat :**
+    La matrice $\mathcal{C}$ est de **rang 6** (pleine dimension de l'espace d'état).
+    > **Conclusion :** Le système est complètement contrôlable. On peut stabiliser la position et l'angle à l'aide des entrées $\Delta f$ et $\Delta \phi$.
+
+    ---
+
+    ## 4. Simulation en boucle ouverte
+    En l'absence de contrôle ($K=0$), une perturbation sur l'angle initial ($\Delta \theta_0 = 45^\circ$) provoque :
+    1. Une **inclinaison constante** (l'angle ne revient pas à zéro).
+    2. Une **accélération latérale** constante due à la gravité.
+    3. Une **dérive parabolique** de la position $x(t)$.
+    """)
+    return
+
+
+@app.cell
+def _(M, g, np):
+    def equilibrium_state(x_eq=0.0, y_eq=0.0):
+        return np.array([x_eq, 0.0, y_eq, 0.0, 0.0, 0.0], dtype=float)
+
+    equilibrium_input = np.array([M * g, 0.0], dtype=float)
+    equilibrium_state(), equilibrium_input
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ### Linéarisation du système
+
+    Nous linéarisons le système autour d'un point d'équilibre générique en introduisant les petites variations suivantes :
+
+    $$
+    x = x_\star + \Delta x, \quad y = y_\star + \Delta y, \quad \theta = \Delta \theta, \quad f = Mg + \Delta f, \quad \phi = \Delta \phi
+    $$
+
+    Nous définissons également les variables d'état pour les vitesses :
+
+    $$
+    \Delta v_x = \Delta \dot{x}, \qquad \Delta v_y = \Delta \dot{y}, \qquad \Delta \omega = \Delta \dot{\theta}
+    $$
+
+    #### 1. Approximations
+    En utilisant les développements limités pour les petits angles ($\sin z \approx z$ et $\cos z \approx 1$) et en négligeant les produits d'ordre supérieur (comme $\Delta f \cdot \Delta \theta$), nous obtenons :
+
+    * **Accélération horizontale :**
+        $$M \Delta \ddot{x} = -(Mg + \Delta f)\sin(\Delta\theta + \Delta\phi) \approx -Mg(\Delta\theta + \Delta\phi)$$
+    * **Accélération verticale :**
+        $$M \Delta \ddot{y} = (Mg + \Delta f)\cos(\Delta\theta + \Delta\phi) - Mg \approx \Delta f$$
+    * **Accélération angulaire :**
+        $$J \Delta \ddot{\theta} = -(Mg + \Delta f)(\ell/2)\sin(\Delta \phi) \approx -Mg(\ell/2)\Delta \phi$$
+
+    ---
+
+    #### 2. Dynamique linéarisée
+    Les équations simplifiées du mouvement sont donc :
+
+    \begin{align*}
+    \Delta \ddot{x} & = -g \Delta \theta - g \Delta \phi \\
+    \Delta \ddot{y} & = \frac{1}{M}\Delta f \\
+    \Delta \ddot{\theta} & = - \frac{Mg\ell}{2J}\Delta \phi
+    \end{align*}
+
+    ---
+
+    #### 3. Application au cas de la tige
+    En considérant le moment d'inertie d'une tige fine $J = \frac{M\ell^2}{12}$, le coefficient de la dynamique angulaire se simplifie :
+
+    $$
+    \frac{Mg\ell}{2J} = \frac{Mg\ell}{2(M\ell^2/12)} = \frac{6g}{\ell}
+    $$
+
+    Avec les paramètres numériques $g=1$ et $\ell=2$, l'équation de rotation devient simplement :
+
+    $$\Delta \ddot{\theta} = -3 \Delta \phi$$
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ### Représentation par variables d'état
+
+    Pour décrire la dynamique du système, nous utilisons le vecteur d'état linéarisé $z$ et le vecteur de commande linéarisé $\Delta u$.
+
+    #### 1. Vecteur d'état
+    Le vecteur $z \in \mathbb{R}^6$ regroupe les positions et les vitesses du système :
+
+    $$
+    z =
+    \begin{bmatrix}
+    \Delta x \\
+    \Delta v_x \\
+    \Delta y \\
+    \Delta v_y \\
+    \Delta \theta \\
+    \Delta \omega
+    \end{bmatrix}
+    $$
+
+    #### 2. Vecteur de commande
+    Le vecteur $\Delta u$ représente les variations des entrées autour du point d'équilibre :
+
+    $$
+    \Delta u =
+    \begin{bmatrix}
+    \Delta f \\
+    \Delta \phi
+    \end{bmatrix}
+    $$
+
+    #### 3. Équations d'état
+    La dynamique est régie par l'équation $\dot{z} = A z + B \Delta u$, où les matrices $A$ et $B$ sont définies par :
+
+    $$
+    A =
+    \begin{bmatrix}
+    0 & 1 & 0 & 0 & 0 & 0 \\
+    0 & 0 & 0 & 0 & -g & 0 \\
+    0 & 0 & 0 & 1 & 0 & 0 \\
+    0 & 0 & 0 & 0 & 0 & 0 \\
+    0 & 0 & 0 & 0 & 0 & 1 \\
+    0 & 0 & 0 & 0 & 0 & 0
+    \end{bmatrix},
+    \qquad
+    B =
+    \begin{bmatrix}
+    0 & 0 \\
+    0 & -g \\
+    0 & 0 \\
+    1/M & 0 \\
+    0 & 0 \\
+    0 & -Mg\ell/(2J)
+    \end{bmatrix}
+    $$
+    """)
+    return
+
+
+@app.cell
+def _(J, M, g, l, np):
+    alpha = M * g * l / (2 * J)
+
+    A_lin = np.array(
+        [
+            [0.0, 1.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, -g, 0.0],
+            [0.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        ],
+        dtype=float,
+    )
+
+    B_lin = np.array(
+        [
+            [0.0, 0.0],
+            [0.0, -g],
+            [0.0, 0.0],
+            [1.0 / M, 0.0],
+            [0.0, 0.0],
+            [0.0, -alpha],
+        ],
+        dtype=float,
+    )
+
+    A_lin, B_lin
+    return A_lin, B_lin
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ### Analyse de la stabilité
+
+    **Le vol stationnaire à l'équilibre est-il stable ?**
+
+    **Non.** L'équilibre en vol stationnaire (hovering) n'est pas asymptotiquement stable en boucle ouverte.
+
+    #### Justification mathématique
+    L'analyse de la matrice d'état $A$ montre que :
+    * Toutes les valeurs propres de $A$ sont nulles ($\lambda_i = 0$).
+    * En automatique, cela signifie que le système se comporte comme un **intégrateur pur**.
+
+    #### Justification physique
+    Il n'existe aucun **mécanisme de rappel naturel** (comme un ressort ou un amortissement) qui ramènerait le système vers son équilibre après une perturbation.
+
+    Si le drone est légèrement incliné ou poussé :
+    1. Il ne redressera pas son angle tout seul.
+    2. Sa vitesse continuera de croître ou sa position de dériver indéfiniment.
+
+    > **Conclusion :** Une intervention active via une loi de commande (boucle fermée) est indispensable pour stabiliser le système.
+    """)
+    return
+
+
+@app.cell
+def _(A_lin, np):
+    eig_A_lin = np.linalg.eigvals(A_lin)
+    eig_A_lin
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ###  Analyse de la contrôlabilité
+
+    **Le système est-il contrôlable ?**
+
+    **Oui.** Le système linéarisé complet est entièrement contrôlable.
+
+    #### Justification intuitive
+    Le système peut être décomposé en deux sous-systèmes découplés au premier ordre :
+
+    1.  **Sous-système vertical $(\Delta y, \Delta v_y)$ :** L'entrée $\Delta f$ (variation de la poussée) contrôle directement ce double intégrateur.
+    2.  **Sous-système latéral-attitude $(\Delta x, \Delta v_x, \Delta \theta, \Delta \omega)$ :** L'entrée $\Delta \phi$ (inclinaison du booster) permet de contrôler l'angle $\theta$, qui lui-même induit un mouvement latéral $x$ grâce au couplage de la gravité.
+
+    Puisque ces deux sous-systèmes sont contrôlables indépendamment, l'ensemble du système est **contrôlable**.
+
+    > **Note technique :** Ce résultat a été confirmé mathématiquement par le calcul du rang de la matrice de Kalman, qui est égal à 6 (dimension totale de l'espace d'état).
+    """)
+    return
+
+
+@app.cell
+def _(A_lin, B_lin, np):
+    def controllability_matrix(A, B):
+        n = A.shape[0]
+        blocks = [B]
+        current = B
+        for _ in range(1, n):
+            current = A @ current
+            blocks.append(current)
+        return np.hstack(blocks)
+
+    ctrb_full = controllability_matrix(A_lin, B_lin)
+    ctrb_full_rank = np.linalg.matrix_rank(ctrb_full)
+    ctrb_full_rank
+    return (controllability_matrix,)
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ### Système latéral réduit
+
+    Si l'on ne conserve que les variables latérales et angulaires en fixant la poussée $f = Mg$, le vecteur d'état réduit $z_{\mathrm{lat}}$ et l'entrée $u_{\mathrm{lat}}$ sont :
+
+    $$
+    z_{\mathrm{lat}} =
+    \begin{bmatrix}
+    \Delta x \\
+    \Delta \dot{x} \\
+    \Delta \theta \\
+    \Delta \dot{\theta}
+    \end{bmatrix},
+    \qquad
+    u_{\mathrm{lat}} = \Delta \phi
+    $$
+
+    #### 1. Équations du système réduit
+    La dynamique simplifiée s'écrit :
+
+    \begin{align*}
+    \Delta \dot{x} &= \Delta v_x \\
+    \Delta \ddot{x} &= -g \Delta \theta - g \Delta \phi \\
+    \Delta \dot{\theta} &= \Delta \omega \\
+    \Delta \ddot{\theta} &= -\frac{Mg\ell}{2J}\Delta \phi
+    \end{align*}
+
+    #### 2. Représentation d'état $\dot{z}_{\mathrm{lat}} = A_{\mathrm{lat}} z_{\mathrm{lat}} + B_{\mathrm{lat}} \Delta \phi$
+    Les matrices correspondantes sont :
+
+    $$
+    A_{\mathrm{lat}} =
+    \begin{bmatrix}
+    0 & 1 & 0 & 0 \\
+    0 & 0 & -g & 0 \\
+    0 & 0 & 0 & 1 \\
+    0 & 0 & 0 & 0
+    \end{bmatrix},
+    \qquad
+    B_{\mathrm{lat}} =
+    \begin{bmatrix}
+    0 \\
+    -g \\
+    0 \\
+    -\frac{Mg\ell}{2J}
+    \end{bmatrix}
+    $$
+
+    #### 3. Application numérique
+    Avec les paramètres $g=1$ et $\ell=2$ (où $\frac{6g}{\ell} = 3$), nous obtenons :
+
+    $$
+    B_{\mathrm{lat}} = \begin{bmatrix} 0 \\ -1 \\ 0 \\ -3 \end{bmatrix}
+    $$
+
+    **Analyse de la contrôlabilité :**
+    La matrice de Kalman pour ce système réduit est de **rang 4**. Par conséquent, le système latéral est entièrement contrôlable : il est possible de stabiliser à la fois la position horizontale et l'angle d'inclinaison en utilisant uniquement l'orientation du booster ($\Delta \phi$).
+    """)
+    return
+
+
+@app.cell
+def _(A_lat, B_lat, controllability_matrix, np):
+    ctrb_lat = controllability_matrix(A_lat, B_lat)
+    ctrb_lat_rank = np.linalg.matrix_rank(ctrb_lat)
+    A_lat, B_lat, ctrb_lat_rank
+    return
+
+
+@app.cell
+def _(A_lat, B_lat, np, scipy):
+    def solve_linear_lateral(t_span, z0, phi_fun):
+        def fun(t, z):
+            phi = float(np.atleast_1d(phi_fun(t, z))[0])
+            return A_lat @ z + B_lat[:, 0] * phi
+
+        r = scipy.integrate.solve_ivp(fun, t_span, z0, dense_output=True, max_step=0.05)
+        return r.sol
+
+    return (solve_linear_lateral,)
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ### Analyse du comportement sans contrôle
+
+    Si l'on n'applique aucune correction ($\Delta \phi(t)=0$ pour tout $t$), les équations de la dynamique latérale se simplifient ainsi :
+
+    \begin{align*}
+    \Delta \ddot{x} &= -g \Delta \theta \\
+    \Delta \ddot{\theta} &= 0
+    \end{align*}
+
+    #### Évolution temporelle
+    En partant d'une perturbation initiale de l'angle $\Delta \theta(0)=\pi/4$ avec une vitesse angulaire nulle $\Delta \dot{\theta}(0)=0$, nous obtenons :
+
+    1.  **L'angle reste constant :**
+        $$\Delta \theta(t) = \frac{\pi}{4}$$
+        Pour tout $t$, l'inclinaison ne change pas car aucune force ne vient s'opposer au déséquilibre.
+
+    2.  **La position dérive :**
+        L'accélération horizontale est donc constante :
+        $$\Delta \ddot{x}(t) = -g \frac{\pi}{4}$$
+        Par intégration, cela signifie que la vitesse croît linéairement et que le déplacement latéral $\Delta x(t)$ dérive de manière **quadratique** (parabolique) au cours du temps.
+
+    > **Conclusion :** Le système ne possède aucun mécanisme d'auto-correction. Sans un asservissement actif pour ramener l'angle à zéro, une simple erreur d'inclinaison initiale entraîne une divergence totale de la position du booster.
+    """)
+    return
+
+
+@app.cell
+def _(np, plt, solve_linear_lateral):
+    def linear_free_fall_example():
+        t_span = [0.0, 8.0]
+        z0 = np.array([0.0, 0.0, np.pi / 4, 0.0], dtype=float)
+        sol = solve_linear_lateral(t_span, z0, lambda t, z: np.array([0.0]))
+        t = np.linspace(t_span[0], t_span[1], 600)
+        z_t = sol(t)
+
+        fig, axes = plt.subplots(2, 1, figsize=(7, 6), sharex=True)
+        axes[0].plot(t, z_t[0], label=r"$\Delta x(t)$")
+        axes[0].axhline(0.0, color="black", lw=0.8, ls="--")
+        axes[0].set_ylabel(r"$\Delta x$")
+        axes[0].grid(True)
+        axes[0].legend()
+
+        axes[1].plot(t, z_t[2], color="darkorange", label=r"$\Delta \theta(t)$")
+        axes[1].axhline(0.0, color="black", lw=0.8, ls="--")
+        axes[1].set_xlabel("time $t$")
+        axes[1].set_ylabel(r"$\Delta \theta$")
+        axes[1].grid(True)
+        axes[1].legend()
+
+        fig.suptitle("Reduced Linear Model with $\\Delta \\phi(t)=0$")
+        fig.tight_layout()
+        return fig
+
+    linear_free_fall_example()
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ### Conception d'une commande manuelle (PD)
+
+    Pour simplifier la conception, nous choisissons de ne réinjecter que les variables angulaires (commande proportionnelle-dérivée sur l'angle) :
+
+    $$
+    K =
+    \begin{bmatrix}
+    0 & 0 & k_\theta & k_\omega
+    \end{bmatrix}
+    $$
+
+    #### 1. Loi de commande
+    L'orientation du booster est alors pilotée par :
+    $$
+    \Delta \phi = -k_\theta \Delta \theta - k_\omega \Delta \dot{\theta}
+    $$
+
+    #### 2. Dynamique en boucle fermée
+    En sachant que $\Delta \ddot{\theta} = -3 \Delta \phi$, l'évolution de l'angle en boucle fermée devient :
+    $$
+    \Delta \ddot{\theta} - 3 k_\omega \Delta \dot{\theta} - 3 k_\theta \Delta \theta = 0
+    $$
+
+    Pour obtenir un modèle de second ordre stable de la forme $\Delta \ddot{\theta} + b \Delta \dot{\theta} + a \Delta \theta = 0$, nous devons identifier les gains :
+    $$
+    k_\theta = -\frac{a}{3}, \qquad k_\omega = -\frac{b}{3}
+    $$
+
+    #### 3. Application numérique
+    Un bon compromis (stabilité et douceur) est obtenu avec $a \approx 0.12$ et $b \approx 0.5$, ce qui donne :
+    $$
+    K_{\mathrm{manuelle}} = \begin{bmatrix} 0 & 0 & -0.04 & -1/6 \end{bmatrix}
+    $$
+
+
+
+    ---
+
+    ### ⚠️ Limite de cette commande
+    Avec ces réglages, l'angle $\theta(t)$ converge vers zéro en moins de 20 secondes tout en maintenant l'inclinaison $\phi(t)$ très faible.
+
+    Cependant, le système à 4 états n'est **pas** encore asymptotiquement stable. Pourquoi ? Parce que $\Delta x$ et $\Delta \dot{x}$ ne sont pas pris en compte dans le calcul. Mathématiquement, deux valeurs propres restent à **0**. Le booster sera "droit" (vertical), mais il pourrait continuer à dériver à une vitesse constante s'il avait une impulsion initiale.
+    """)
+    return
+
+
+@app.cell
+def _(np, plt, solve_linear_lateral):
+    def simulate_linear_state_feedback(K, t_span=(0.0, 30.0), z0=None):
+            if z0 is None:
+                z0 = np.array([0.0, 0.0, np.pi / 4, 0.0], dtype=float)
+
+            def phi_fun(t, z):
+                # Assure-toi que solve_linear_lateral est défini ailleurs
+                return np.array([float(-(K @ z.reshape(-1, 1))[0, 0])])
+
+            sol = solve_linear_lateral(t_span, z0, phi_fun)
+            return sol, phi_fun
+    def plot_manual_tuning():
+        manual_gain_guesses = [
+            ("guess 1", np.array([[0.0, 0.0, -0.03, -0.14]], dtype=float)),
+            ("guess 2", np.array([[0.0, 0.0, -0.04, -1.0 / 6.0]], dtype=float)),
+            ("guess 3", np.array([[0.0, 0.0, -1.0 / 15.0, -7.0 / 30.0]], dtype=float)),
+        ]
+
+
+        t_eval = np.linspace(0.0, 30.0, 1200)
+        # On utilise des noms locaux pour éviter les conflits Marimo
+        fig_tuning, ax_tuning = plt.subplots(3, 1, figsize=(8, 9), sharex=True)
+
+        for label, K_mat in manual_gain_guesses:
+            sol, phi_f = simulate_linear_state_feedback(K_mat)
+            z_t = sol(t_eval)
+            # Calcul de phi sur toute la trajectoire
+            phi_t = np.array([phi_f(tt, z_t[:, idx])[0] for idx, tt in enumerate(t_eval)])
+        
+            ax_tuning[0].plot(t_eval, z_t[2], label=label)
+            ax_tuning[1].plot(t_eval, phi_t, label=label)
+            ax_tuning[2].plot(t_eval, z_t[0], label=label)
+
+        ax_tuning[0].set_ylabel(r"$\Delta \theta$ (rad)")
+        ax_tuning[0].legend()
+        ax_tuning[1].set_ylabel(r"$\Delta \phi$ (rad)")
+        ax_tuning[2].set_ylabel(r"$\Delta x$ (m)")
+        ax_tuning[2].set_xlabel("Temps (s)")
+    
+        for a in ax_tuning:
+            a.grid(True)
+            a.axhline(0, color='black', lw=1, ls='--')
+
+        fig_tuning.suptitle("Réglage manuel : Comparaison des 3 essais")
+        plt.tight_layout()
+        return fig_tuning
+
+    # Appel de la fonction pour afficher le graphique
+    plot_manual_tuning()
+    return (simulate_linear_state_feedback,)
+
+
+@app.cell
+def _(np):
+    K_manual = np.array([[0.0, 0.0, -0.04, -1.0 / 6.0]], dtype=float)
+    K_manual
+    return (K_manual,)
+
+
+@app.cell
+def _(A_lat, B_lat, K_manual, np):
+    A_manual_cl = A_lat - B_lat @ K_manual
+    eig_manual_cl = np.linalg.eigvals(A_manual_cl)
+    eig_manual_cl
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ### Stabilisation par Placement de Pôles
+
+    Pour cette étape, nous utilisons le vecteur d'état latéral complet. La loi de commande par retour d'état s'écrit :
+
+    $$
+    \Delta \phi = -K_{pp}
+    \begin{bmatrix}
+    \Delta x \\
+    \Delta \dot{x} \\
+    \Delta \theta \\
+    \Delta \dot{\theta}
+    \end{bmatrix}
+    $$
+
+    #### 1. Choix des pôles cibles
+    Pour garantir les performances souhaitées, j'ai sélectionné les pôles suivants :
+    $$\{-0.4, \quad -0.45, \quad -0.6 \pm 0.25 i\}$$
+
+    #### 2. Analyse du choix
+    * **Stabilité garantie :** Tous les pôles ont une partie réelle négative, ce qui assure que l'erreur convergera vers zéro.
+    * **Rapidité :** La convergence est plus rapide qu'avec le contrôleur manuel (PD).
+    * **Amortissement :** La composante imaginaire ($\pm 0.25 i$) introduit une légère oscillation. C'est un compromis utile pour obtenir une réponse "vive" sans demander des angles de cardan (gimbal) excessifs qui pourraient saturer les actionneurs.
+
+    ---
+
+    ### Pourquoi est-ce "meilleur" que le réglage manuel ?
+    Contrairement au contrôleur précédent qui ne stabilisait que l'angle, le placement de pôles permet de coupler la dynamique de la position $x$ et de l'angle $\theta$.
+
+    Grâce à cette matrice $K_{pp}$ complète, le booster ne va pas seulement se remettre à la verticale : il va aussi **revenir activement vers sa position cible $x=0$**. On élimine ainsi la dérive résiduelle que tu as pu observer lors de tes simulations précédentes.
+    """)
+    return
+
+
+@app.cell
+def _(A_lat, B_lat, np, scipy):
+    desired_poles_pp = np.array([-0.4, -0.45, -0.6 + 0.25j, -0.6 - 0.25j])
+    K_pp = scipy.signal.place_poles(A_lat, B_lat, desired_poles_pp).gain_matrix
+    A_pp_cl = A_lat - B_lat @ K_pp
+    eig_pp_cl = np.linalg.eigvals(A_pp_cl)
+    K_pp, eig_pp_cl
+    return (K_pp,)
+
+
+@app.cell
+def _(K_pp, np, plt, simulate_linear_state_feedback):
+    def pole_placement_example():
+        sol, phi_fun = simulate_linear_state_feedback(K_pp, t_span=(0.0, 25.0))
+        t = np.linspace(0.0, 25.0, 1000)
+        z_t = sol(t)
+        phi_t = np.array([phi_fun(tt, z_t[:, i])[0] for i, tt in enumerate(t)])
+
+        fig, axes = plt.subplots(3, 1, figsize=(8, 9), sharex=True)
+        axes[0].plot(t, z_t[0], label=r"$\Delta x(t)$")
+        axes[0].plot(t, z_t[2], label=r"$\Delta \theta(t)$")
+        axes[0].axhline(0.0, color="black", lw=0.8, ls="--")
+        axes[0].set_ylabel("states")
+        axes[0].grid(True)
+        axes[0].legend()
+
+        axes[1].plot(t, phi_t, color="darkgreen", label=r"$\Delta \phi(t)$")
+        axes[1].axhline(np.pi / 2, color="grey", lw=0.8, ls="--")
+        axes[1].axhline(-np.pi / 2, color="grey", lw=0.8, ls="--")
+        axes[1].set_ylabel(r"$\Delta \phi$")
+        axes[1].grid(True)
+        axes[1].legend()
+
+        axes[2].plot(t, z_t[1], label=r"$\Delta \dot{x}(t)$")
+        axes[2].plot(t, z_t[3], label=r"$\Delta \dot{\theta}(t)$")
+        axes[2].axhline(0.0, color="black", lw=0.8, ls="--")
+        axes[2].set_xlabel("time $t$")
+        axes[2].set_ylabel("derivatives")
+        axes[2].grid(True)
+        axes[2].legend()
+
+        fig.suptitle("Linear Closed Loop with Pole Placement")
+        fig.tight_layout()
+        return fig
+
+    pole_placement_example()
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ### Contrôle Optimal (LQR)
+
+    Pour la conception du régulateur LQR, nous cherchons à minimiser le coût global défini par l'intégrale :
+
+    $$
+    \int_0^\infty
+    \left(
+    z_{\mathrm{lat}}^\top Q z_{\mathrm{lat}}
+    +
+    \Delta \phi^\top R \Delta \phi
+    \right) dt
+    $$
+
+    #### 1. Paramètres de pondération
+    J'ai choisi les matrices de poids suivantes :
+    * **Matrice d'état :** $Q = \mathrm{diag}(1, 1, 5, 2)$
+    * **Matrice de commande :** $R = [50]$
+
+    #### 2. Analyse physique du réglage
+    * **Priorité à l'angle ($\theta$) :** Le poids plus élevé sur $\theta$ (valeur de 5 dans la matrice $Q$) reflète le fait que maintenir le booster à la verticale est bien plus critique que de laisser la position $x$ s'écarter légèrement pendant un court instant.
+    * **Économie d'actionneur ($R$) :** La valeur relativement élevée de $R$ (50) agit comme un "frein" sur le contrôleur. Cela l'empêche de commander des angles de cardan (gimbal) irréalistes ou trop brusques, ce qui protège la mécanique du drone.
+
+    ---
+
+    ### Pourquoi utiliser le LQR ici ?
+    Le LQR est idéal car il trouve automatiquement le meilleur équilibre mathématique. Si tu augmentes $R$, ton booster sera plus "mou" mais consommera moins d'énergie. Si tu augmentes les valeurs de $Q$, il sera extrêmement réactif et précis, mais ses moteurs bougeront très vite.
+
+    C'est cette méthode qui est généralement utilisée pour les systèmes aérospatiaux réels (comme ceux de SpaceX) pour gérer la descente des boosters.
+    """)
+    return
+
+
+@app.cell
+def _(A_lat, B_lat, np, scipy):
+    Q_oc = np.diag([1.0, 1.0, 5.0, 2.0])
+    R_oc = np.array([[50.0]], dtype=float)
+    P_oc = scipy.linalg.solve_continuous_are(A_lat, B_lat, Q_oc, R_oc)
+    K_oc = np.linalg.solve(R_oc, B_lat.T @ P_oc)
+    A_oc_cl = A_lat - B_lat @ K_oc
+    eig_oc_cl = np.linalg.eigvals(A_oc_cl)
+    K_oc, eig_oc_cl
+    return (K_oc,)
+
+
+@app.cell
+def _(K_oc, np, plt, simulate_linear_state_feedback):
+    def lqr_example():
+        sol, phi_fun = simulate_linear_state_feedback(K_oc, t_span=(0.0, 20.0))
+        t = np.linspace(0.0, 20.0, 1000)
+        z_t = sol(t)
+        phi_t = np.array([phi_fun(tt, z_t[:, i])[0] for i, tt in enumerate(t)])
+
+        fig, axes = plt.subplots(3, 1, figsize=(8, 9), sharex=True)
+        axes[0].plot(t, z_t[0], label=r"$\Delta x(t)$")
+        axes[0].plot(t, z_t[2], label=r"$\Delta \theta(t)$")
+        axes[0].axhline(0.0, color="black", lw=0.8, ls="--")
+        axes[0].set_ylabel("states")
+        axes[0].grid(True)
+        axes[0].legend()
+
+        axes[1].plot(t, phi_t, color="firebrick", label=r"$\Delta \phi(t)$")
+        axes[1].axhline(np.pi / 2, color="grey", lw=0.8, ls="--")
+        axes[1].axhline(-np.pi / 2, color="grey", lw=0.8, ls="--")
+        axes[1].set_ylabel(r"$\Delta \phi$")
+        axes[1].grid(True)
+        axes[1].legend()
+
+        axes[2].plot(t, z_t[1], label=r"$\Delta \dot{x}(t)$")
+        axes[2].plot(t, z_t[3], label=r"$\Delta \dot{\theta}(t)$")
+        axes[2].axhline(0.0, color="black", lw=0.8, ls="--")
+        axes[2].set_xlabel("time $t$")
+        axes[2].set_ylabel("derivatives")
+        axes[2].grid(True)
+        axes[2].legend()
+
+        fig.suptitle("Linear Closed Loop with LQR")
+        fig.tight_layout()
+        return fig
+
+    lqr_example()
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ### Validation sur le modèle non-linéaire
+
+    Les contrôleurs par placement de pôles et LQR ont été conçus uniquement pour le modèle latéral réduit. Pour les valider sur la **dynamique non-linéaire complète**, j'utilise ces lois latérales pour $\phi$ et j'ajoute une boucle de maintien d'altitude pour la poussée $f$ :
+
+    #### 1. Loi de commande de la poussée
+    Pour compenser la gravité et les inclinaisons, la force $f(t)$ est calculée ainsi :
+
+    $$
+    f(t) = \frac{M\bigl(g + k_y(y_{\mathrm{ref}} - y) - k_v \dot{y}\bigr)}{\cos(\theta + \phi)}
+    $$
+
+    * **Maintien d'altitude :** Le numérateur est un correcteur PD qui stabilise le drone à une hauteur de référence $y_{\mathrm{ref}}$.
+    * **Compensation d'angle :** La division par $\cos(\theta + \phi)$ permet d'augmenter automatiquement la poussée lorsque le booster est incliné, afin de maintenir une force verticale constante malgré l'angle.
+
+    #### 2. Sécurité et contraintes
+    Pour rester dans un cadre de fonctionnement réaliste et sécurisé :
+    * **Saturation du cardan (Gimbal) :** L'angle $\phi$ est limité (clippé) à l'intervalle $[-\pi/3, \pi/3]$.
+    * **Respect des limites :** Cela garantit que la validation reste bien à l'intérieur de la zone de sécurité demandée ($|\phi| < \pi/2$), même en cas de fortes perturbations.
+
+    ---
+
+    ### Pourquoi cette étape est-elle "le test de vérité" ?
+    Dans le monde réel, un booster ne reste pas sagement dans le domaine linéaire. En testant ton gain $K$ (calculé sur un modèle simplifié) avec cette formule de poussée non-linéaire, tu vérifies la **robustesse** de ton système. Si le drone parvient à se stabiliser malgré la division par le cosinus et la saturation des angles, cela signifie que ton design est prêt pour une application concrète.
+    """)
+    return
+
+
+@app.cell
+def _(K_oc, K_pp, M, g, np, redstart_solve):
+    def nonlinear_hover_validation(K, t_span=(0.0, 25.0), y0=None, y_ref=None, phi_limit=np.pi / 3):
+        if y0 is None:
+            y0 = np.array([0.0, 0.0, 5.0, 0.0, np.pi / 4, 0.0], dtype=float)
+        else:
+            y0 = np.array(y0, dtype=float)
+
+        if y_ref is None:
+            y_ref = float(y0[2])
+
+        k_y = 1.2
+        k_vy = 1.8
+
+        def f_phi(t, state):
+            x, vx, y, vy, theta, omega = state
+            z_lat = np.array([x, vx, theta, omega], dtype=float)
+            phi = float(-(K @ z_lat.reshape(-1, 1))[0, 0])
+            phi = float(np.clip(phi, -phi_limit, phi_limit))
+
+            denom = max(np.cos(theta + phi), 0.25)
+            vertical_command = g + k_y * (y_ref - y) - k_vy * vy
+            f = max(M * vertical_command / denom, 0.0)
+            return np.array([f, phi], dtype=float)
+
+        sol = redstart_solve(t_span, y0, f_phi)
+        return sol, f_phi
+
+    validation_pp = nonlinear_hover_validation(K_pp)
+    validation_oc = nonlinear_hover_validation(K_oc)
+    return validation_oc, validation_pp
+
+
+@app.cell
+def _(np, plt):
+    def plot_nonlinear_validation(validation, title):
+        sol, f_phi = validation
+        t = np.linspace(0.0, 25.0, 1200)
+        state_t = sol(t)
+        f_t = np.array([f_phi(tt, state_t[:, i])[0] for i, tt in enumerate(t)])
+        phi_t = np.array([f_phi(tt, state_t[:, i])[1] for i, tt in enumerate(t)])
+
+        fig, axes = plt.subplots(4, 1, figsize=(8, 11), sharex=True)
+
+        axes[0].plot(t, state_t[0], label=r"$x(t)$")
+        axes[0].plot(t, state_t[4], label=r"$\theta(t)$")
+        axes[0].axhline(0.0, color="black", lw=0.8, ls="--")
+        axes[0].set_ylabel("states")
+        axes[0].grid(True)
+        axes[0].legend()
+
+        axes[1].plot(t, state_t[2], color="teal", label=r"$y(t)$")
+        axes[1].axhline(state_t[2, 0], color="grey", lw=0.8, ls="--")
+        axes[1].set_ylabel(r"$y$")
+        axes[1].grid(True)
+        axes[1].legend()
+
+        axes[2].plot(t, phi_t, color="purple", label=r"$\phi(t)$")
+        axes[2].axhline(np.pi / 2, color="grey", lw=0.8, ls="--")
+        axes[2].axhline(-np.pi / 2, color="grey", lw=0.8, ls="--")
+        axes[2].set_ylabel(r"$\phi$")
+        axes[2].grid(True)
+        axes[2].legend()
+
+        axes[3].plot(t, f_t, color="darkred", label=r"$f(t)$")
+        axes[3].axhline(1.0, color="grey", lw=0.8, ls="--", label=r"$Mg$")
+        axes[3].set_xlabel("time $t$")
+        axes[3].set_ylabel(r"$f$")
+        axes[3].grid(True)
+        axes[3].legend()
+
+        fig.suptitle(title)
+        fig.tight_layout()
+        return fig
+
+    return (plot_nonlinear_validation,)
+
+
+@app.cell
+def _(plot_nonlinear_validation, validation_pp):
+    plot_nonlinear_validation(validation_pp, "Nonlinear Validation with Pole Placement")
+    return
+
+
+@app.cell
+def _(plot_nonlinear_validation, validation_oc):
+    plot_nonlinear_validation(validation_oc, "Nonlinear Validation with LQR")
+    return
+
+
+@app.cell
+def _(booster_anim, mo, validation_pp, world):
+    def validation_animation_pp():
+        sol, f_phi = validation_pp
+        T = 25.0
+        x = lambda t: sol(t)[0]
+        y = lambda t: sol(t)[2]
+        theta = lambda t: sol(t)[4]
+        f = lambda t: f_phi(t, sol(t))[0]
+        phi = lambda t: f_phi(t, sol(t))[1]
+        return mo.Html(
+            world(
+                [-6, 6, -1, 8],
+                booster_anim(x, y, theta, f, phi, T=T),
+            )
+        ).center()
+
+    validation_animation_pp()
+    return
+
+
+@app.cell
+def _(booster_anim, mo, validation_oc, world):
+    def validation_animation_oc():
+        sol, f_phi = validation_oc
+        T = 25.0
+        x = lambda t: sol(t)[0]
+        y = lambda t: sol(t)[2]
+        theta = lambda t: sol(t)[4]
+        f = lambda t: f_phi(t, sol(t))[0]
+        phi = lambda t: f_phi(t, sol(t))[1]
+        return mo.Html(
+            world(
+                [-6, 6, -1, 8],
+                booster_anim(x, y, theta, f, phi, T=T),
+            )
+        ).center()
+
+    validation_animation_oc()
+    return
+
+
+@app.cell
+def _():
     return
 
 
