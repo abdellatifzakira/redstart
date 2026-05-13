@@ -2571,6 +2571,115 @@ def _(mo):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
+    From the previous calculation:
+    $$\ddot h = \begin{pmatrix} +\dfrac{z}{M}\sin\theta \\[6pt] -\dfrac{z}{M}\cos\theta - g \end{pmatrix}.$$
+
+    We also have the dynamics of the auxiliary system:
+    $$\ddot z = v_1, \qquad \ddot\theta = \frac{v_2}{z}.$$
+
+    The goal is to differentiate $\ddot h$ once to get $h^{(3)}$, then a second time to get $h^{(4)}$.
+
+    ---
+
+    ## Step 1: third derivative $h^{(3)}$
+
+    We differentiate $\ddot h$ component by component. The gravity term $-g$ is constant, so it disappears.
+
+    ### Step 1a — First component
+
+    Differentiate $\ddot h_1 = \dfrac{z}{M}\sin\theta$ using the product rule (both $z$ and $\sin\theta$ are functions of time):
+    $$h^{(3)}_1 = \frac{d}{dt}\!\left( \frac{z}{M}\sin\theta \right) = \frac{\dot z}{M}\sin\theta + \frac{z}{M}\cos\theta \cdot \dot\theta = \frac{\dot z}{M}\sin\theta + \frac{z\dot\theta}{M}\cos\theta.$$
+
+    ### Step 1b — Second component
+
+    Differentiate $\ddot h_2 = -\dfrac{z}{M}\cos\theta - g$ similarly:
+    $$h^{(3)}_2 = \frac{d}{dt}\!\left( -\frac{z}{M}\cos\theta \right) = -\frac{\dot z}{M}\cos\theta - \frac{z}{M}(-\sin\theta) \cdot \dot\theta = -\frac{\dot z}{M}\cos\theta + \frac{z\dot\theta}{M}\sin\theta.$$
+
+    ### Step 1c — Final expression
+
+    $$\boxed{\;h^{(3)} = \begin{pmatrix} +\dfrac{\dot z}{M}\sin\theta + \dfrac{z\dot\theta}{M}\cos\theta \\[8pt] -\dfrac{\dot z}{M}\cos\theta + \dfrac{z\dot\theta}{M}\sin\theta \end{pmatrix}.\;}$$
+
+    This depends only on $\theta, \dot\theta, z, \dot z$ — no inputs yet, as required.
+
+    ---
+
+    ## Step 2: fourth derivative $h^{(4)}$
+
+    Now we differentiate $h^{(3)}$ component by component. The inputs $v_1$ and $v_2$ finally appear, because:
+    - differentiating $\dot z$ gives $\ddot z = v_1$,
+    - differentiating $\dot\theta$ gives $\ddot\theta = v_2/z$.
+
+    ### Step 2a — First component
+
+    Start from:
+    $$h^{(3)}_1 = \frac{\dot z}{M}\sin\theta + \frac{z\dot\theta}{M}\cos\theta.$$
+
+    **Differentiate $\dfrac{\dot z}{M}\sin\theta$:**
+    $$\frac{d}{dt}\!\left( \frac{\dot z}{M}\sin\theta \right) = \frac{\ddot z}{M}\sin\theta + \frac{\dot z}{M}\cos\theta \cdot \dot\theta = \frac{v_1}{M}\sin\theta + \frac{\dot z \dot\theta}{M}\cos\theta,$$
+    using $\ddot z = v_1$.
+
+    **Differentiate $\dfrac{z\dot\theta}{M}\cos\theta$.** First, we need the derivative of $z\dot\theta$ (a product):
+    $$\frac{d}{dt}(z\dot\theta) = \dot z \cdot \dot\theta + z \cdot \ddot\theta = \dot z \dot\theta + z \cdot \frac{v_2}{z} = \dot z \dot\theta + v_2.$$
+
+    Then, applying the product rule on the whole term:
+    $$\frac{d}{dt}\!\left( \frac{z\dot\theta}{M}\cos\theta \right) = \frac{\dot z\dot\theta + v_2}{M}\cos\theta + \frac{z\dot\theta}{M}(-\sin\theta) \cdot \dot\theta = \frac{\dot z\dot\theta}{M}\cos\theta + \frac{v_2}{M}\cos\theta - \frac{z\dot\theta^2}{M}\sin\theta.$$
+
+    **Sum:**
+    $$h^{(4)}_1 = \frac{v_1}{M}\sin\theta + \frac{\dot z \dot\theta}{M}\cos\theta + \frac{\dot z\dot\theta}{M}\cos\theta + \frac{v_2}{M}\cos\theta - \frac{z\dot\theta^2}{M}\sin\theta.$$
+
+    The two $\dfrac{\dot z\dot\theta}{M}\cos\theta$ terms combine:
+    $$h^{(4)}_1 = \frac{v_1}{M}\sin\theta + \frac{2\dot z\dot\theta}{M}\cos\theta + \frac{v_2}{M}\cos\theta - \frac{z\dot\theta^2}{M}\sin\theta.$$
+
+    Factor by grouping the $\sin\theta$ and $\cos\theta$ terms:
+    $$h^{(4)}_1 = \frac{1}{M}\!\left[\,( v_1 - z\dot\theta^2 )\sin\theta + (v_2 + 2\dot z\dot\theta)\cos\theta\,\right].$$
+
+    ### Step 2b — Second component
+
+    Start from:
+    $$h^{(3)}_2 = -\frac{\dot z}{M}\cos\theta + \frac{z\dot\theta}{M}\sin\theta.$$
+
+    **Differentiate $-\dfrac{\dot z}{M}\cos\theta$:**
+    $$\frac{d}{dt}\!\left( -\frac{\dot z}{M}\cos\theta \right) = -\frac{\ddot z}{M}\cos\theta - \frac{\dot z}{M}(-\sin\theta)\cdot\dot\theta = -\frac{v_1}{M}\cos\theta + \frac{\dot z\dot\theta}{M}\sin\theta.$$
+
+    **Differentiate $\dfrac{z\dot\theta}{M}\sin\theta$**, using again $\dfrac{d}{dt}(z\dot\theta) = \dot z\dot\theta + v_2$:
+    $$\frac{d}{dt}\!\left( \frac{z\dot\theta}{M}\sin\theta \right) = \frac{\dot z\dot\theta + v_2}{M}\sin\theta + \frac{z\dot\theta}{M}\cos\theta \cdot \dot\theta = \frac{\dot z\dot\theta}{M}\sin\theta + \frac{v_2}{M}\sin\theta + \frac{z\dot\theta^2}{M}\cos\theta.$$
+
+    **Sum:**
+    $$h^{(4)}_2 = -\frac{v_1}{M}\cos\theta + \frac{\dot z\dot\theta}{M}\sin\theta + \frac{\dot z\dot\theta}{M}\sin\theta + \frac{v_2}{M}\sin\theta + \frac{z\dot\theta^2}{M}\cos\theta.$$
+
+    The two $\dfrac{\dot z\dot\theta}{M}\sin\theta$ terms combine:
+    $$h^{(4)}_2 = -\frac{v_1}{M}\cos\theta + \frac{2\dot z\dot\theta}{M}\sin\theta + \frac{v_2}{M}\sin\theta + \frac{z\dot\theta^2}{M}\cos\theta.$$
+
+    Factor by grouping:
+    $$h^{(4)}_2 = \frac{1}{M}\!\left[\,-(v_1 - z\dot\theta^2)\cos\theta + (v_2 + 2\dot z\dot\theta)\sin\theta\,\right].$$
+
+    ### Step 2c — Final expression
+
+    Putting both components together:
+    $$\boxed{\;h^{(4)} = \frac{1}{M}\begin{pmatrix} (v_1 - z\dot\theta^2)\sin\theta + (v_2 + 2\dot z\dot\theta)\cos\theta \\[6pt] -(v_1 - z\dot\theta^2)\cos\theta + (v_2 + 2\dot z\dot\theta)\sin\theta \end{pmatrix}.\;}$$
+
+    This depends only on $\theta, \dot\theta, z, \dot z$ and the input $v = (v_1, v_2)$, as required.
+
+    ---
+
+    ## Structure of the result
+
+    The expression above can be rewritten in matrix form:
+    $$h^{(4)} = \frac{1}{M}\begin{pmatrix} \sin\theta & \cos\theta \\ -\cos\theta & \sin\theta \end{pmatrix}\begin{pmatrix} v_1 - z\dot\theta^2 \\ v_2 + 2\dot z\dot\theta \end{pmatrix}.$$
+
+    The matrix is exactly $R(\theta - \pi/2)$ from the previous step. The relation between the input $v$ and $h^{(4)}$ is **affine**:
+    $$h^{(4)} = \underbrace{\frac{1}{M}\,R\!\left(\theta - \frac{\pi}{2}\right)}_{\text{matrix in } \theta} v \;+\; \underbrace{\frac{1}{M}\,R\!\left(\theta - \frac{\pi}{2}\right)\begin{pmatrix} -z\dot\theta^2 \\ 2\dot z\dot\theta \end{pmatrix}}_{\text{residual in } \theta, \dot\theta, z, \dot z}.$$
+
+    The matrix $\frac{1}{M}R(\theta - \pi/2)$ is invertible for every $\theta$ (a rotation is always invertible, $\det = 1$). This means we can pick any desired $h^{(4)}$ and recover the input $v$ that produces it.
+
+    ---
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
     ## 🧩 Exact Linearization
 
     Show that with yet another auxiliary system with input $u=(u_1, u_2)$ and output $v$ fed into the previous one, we can achieve the dynamics
