@@ -3420,7 +3420,7 @@ def _(mo):
 
 
 @app.cell
-def _(M, T_inv, Tr, factorial, g, l, np):
+def _(M, Tr, Tr_inv, g, l, np):
     def compute(
         x_0, dx_0, y_0, dy_0, theta_0, dtheta_0, z_0, dz_0,
         x_tf, dx_tf, y_tf, dy_tf, theta_tf, dtheta_tf, z_tf, dz_tf,
@@ -3432,6 +3432,10 @@ def _(M, T_inv, Tr, factorial, g, l, np):
         cx = np.array([H0[0], H0[2], H0[4], H0[6], Htf[0], Htf[2], Htf[4], Htf[6]])
         cy = np.array([H0[1], H0[3], H0[5], H0[7], Htf[1], Htf[3], Htf[5], Htf[7]])
 
+        def factorial(k):
+            if k == 0 :
+                return 1
+            return k * factorial(k-1)
         V = np.zeros((8, 8))
         for k in range(4):
             V[k, k] = factorial(k)
@@ -3451,7 +3455,7 @@ def _(M, T_inv, Tr, factorial, g, l, np):
             d3hx, d3hy = p(ax, 3, t), p(ay, 3, t)
             d4hx, d4hy = p(ax, 4, t), p(ay, 4, t)
 
-            x, dx, y, dy, theta, dtheta, z, dz = T_inv(hx, hy, dhx, dhy, d2hx, d2hy, d3hx, d3hy)
+            x, dx, y, dy, theta, dtheta, z, dz = Tr_inv(hx, hy, dhx, dhy, d2hx, d2hy, d3hx, d3hy)
 
             s, c = np.sin(theta), np.cos(theta)
             v2 = M * (c * d4hx + s * d4hy) - 2 * dz * dtheta
@@ -3468,7 +3472,7 @@ def _(M, T_inv, Tr, factorial, g, l, np):
 
         return fun
 
-    return
+    return (compute,)
 
 
 @app.cell
@@ -3588,6 +3592,77 @@ def _(mo):
 
     Make the graph of the relevant variables as a function of time, then make an animation out of the same result. Comment and iterate if necessary!
     """)
+    return
+
+
+@app.cell
+def _(M, compute, g, l, np, plt):
+    tf = 10.0
+    fun = compute(
+        5.0, 0.0, 20.0, -1.0, -np.pi/8, 0.0, -M*g, 0.0,
+        0.0, 0.0, (2/3)*l, 0.0,  0.0, 0.0, -M*g, 0.0,
+        tf,
+    )
+
+    t_arr = np.linspace(0, tf, 500)
+    X = np.array([fun(t) for t in t_arr])
+    # Columns of X : x, dx, y, dy, theta, dtheta, z, dz, f, phi
+
+    fig, axes = plt.subplots(3, 2, figsize=(12, 9), sharex=True)
+
+    axes[0, 0].plot(t_arr, X[:, 0], color='steelblue')
+    axes[0, 0].axhline(0.0, color='gray', linestyle='--', alpha=0.5, label='cible')
+    axes[0, 0].set_ylabel('$x(t)$')
+    axes[0, 0].legend(); axes[0, 0].grid(alpha=0.3)
+
+    axes[0, 1].plot(t_arr, X[:, 2], color='steelblue')
+    axes[0, 1].axhline(l/2, color='gray', linestyle='--', alpha=0.5, label='$y = \\ell/2$')
+    axes[0, 1].set_ylabel('$y(t)$')
+    axes[0, 1].legend(); axes[0, 1].grid(alpha=0.3)
+
+    axes[1, 0].plot(t_arr, X[:, 4], color='darkorange')
+    axes[1, 0].axhline( np.pi/2, color='red', linestyle='--', alpha=0.5)
+    axes[1, 0].axhline(-np.pi/2, color='red', linestyle='--', alpha=0.5)
+    axes[1, 0].set_ylabel(r'$\theta(t)$')
+    axes[1, 0].grid(alpha=0.3)
+
+    axes[1, 1].plot(t_arr, X[:, 6], color='purple')
+    axes[1, 1].axhline(0.0, color='red', linestyle='--', alpha=0.5, label='$z = 0$ (singularité)')
+    axes[1, 1].set_ylabel('$z(t)$')
+    axes[1, 1].legend(); axes[1, 1].grid(alpha=0.3)
+
+    axes[2, 0].plot(t_arr, X[:, 8], color='seagreen')
+    axes[2, 0].axhline(0.0, color='red', linestyle='--', alpha=0.5, label='$f = 0$')
+    axes[2, 0].set_ylabel('$f(t)$')
+    axes[2, 0].set_xlabel('$t$')
+    axes[2, 0].legend(); axes[2, 0].grid(alpha=0.3)
+
+    axes[2, 1].plot(t_arr, X[:, 9], color='seagreen')
+    axes[2, 1].axhline( np.pi/2, color='red', linestyle='--', alpha=0.5)
+    axes[2, 1].axhline(-np.pi/2, color='red', linestyle='--', alpha=0.5)
+    axes[2, 1].set_ylabel(r'$\phi(t)$')
+    axes[2, 1].set_xlabel('$t$')
+    axes[2, 1].grid(alpha=0.3)
+
+    plt.tight_layout()
+    plt.show()
+    return fun, tf
+
+
+@app.cell
+def _(booster_anim, fun, mo, tf, world):
+    x_t     = lambda t: fun(t)[0]
+    y_t     = lambda t: fun(t)[2]
+    theta_t = lambda t: fun(t)[4]
+    f_t     = lambda t: fun(t)[8]
+    phi_t   = lambda t: fun(t)[9]
+
+    mo.Html(
+        world(
+            [-3, 8, -2, 22],
+            booster_anim(x_t, y_t, theta_t, f_t, phi_t, T=tf),
+        )
+    ).center()
     return
 
 
