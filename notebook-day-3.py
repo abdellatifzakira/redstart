@@ -2694,10 +2694,137 @@ def _(mo):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
+    From the previous step, we have the affine relation
+    $$h^{(4)} = \frac{1}{M}\,R\!\left(\theta - \frac{\pi}{2}\right)\begin{pmatrix} v_1 - z\dot\theta^2 \\ v_2 + 2\dot z\dot\theta \end{pmatrix},$$
+    with
+    $$R\!\left(\theta - \frac{\pi}{2}\right) = \begin{pmatrix} \sin\theta & \cos\theta \\ -\cos\theta & \sin\theta \end{pmatrix}.$$
+
+    The map $v \mapsto h^{(4)}$ is invertible for every $\theta$, since $R(\theta - \pi/2)$ is a rotation ($\det = 1$).
+
+    We now want to find a rule $u \mapsto v$ such that, when plugged in, the system satisfies
+    $$h^{(4)} = u.$$
+
+    ---
+
+    ## Step 1: invert the relation
+
+    Set $h^{(4)} = u$ and solve for $v$. Starting from
+    $$u = \frac{1}{M}\,R\!\left(\theta - \frac{\pi}{2}\right)\begin{pmatrix} v_1 - z\dot\theta^2 \\ v_2 + 2\dot z\dot\theta \end{pmatrix},$$
+    we multiply both sides by $M \cdot R(\theta - \pi/2)^{-1}$:
+    $$\begin{pmatrix} v_1 - z\dot\theta^2 \\ v_2 + 2\dot z\dot\theta \end{pmatrix} = M\,R\!\left(\theta - \frac{\pi}{2}\right)^{-1} u.$$
+
+    ## Step 2: compute the inverse rotation
+
+    For any rotation, $R(\alpha)^{-1} = R(-\alpha) = R(\alpha)^\top$. So:
+    $$R\!\left(\theta - \frac{\pi}{2}\right)^{-1} = \begin{pmatrix} \sin\theta & -\cos\theta \\ \cos\theta & \sin\theta \end{pmatrix}.$$
+
+    A quick check: multiplying the original matrix by its transpose,
+    $$\begin{pmatrix} \sin\theta & \cos\theta \\ -\cos\theta & \sin\theta \end{pmatrix}\begin{pmatrix} \sin\theta & -\cos\theta \\ \cos\theta & \sin\theta \end{pmatrix} = \begin{pmatrix} \sin^2\theta + \cos^2\theta & 0 \\ 0 & \sin^2\theta + \cos^2\theta \end{pmatrix} = I_2. \checkmark$$
+
+    ## Step 3: write out $v$ as a function of $u$
+
+    Carry out the product $M\,R(\theta - \pi/2)^{-1}\,u$:
+    $$M\begin{pmatrix} \sin\theta & -\cos\theta \\ \cos\theta & \sin\theta \end{pmatrix}\begin{pmatrix} u_1 \\ u_2 \end{pmatrix} = M\begin{pmatrix} u_1\sin\theta - u_2\cos\theta \\ u_1\cos\theta + u_2\sin\theta \end{pmatrix}.$$
+
+    Therefore:
+    $$v_1 - z\dot\theta^2 = M\big(u_1\sin\theta - u_2\cos\theta\big),$$
+    $$v_2 + 2\dot z\dot\theta = M\big(u_1\cos\theta + u_2\sin\theta\big).$$
+
+    Isolating $v_1$ and $v_2$:
+    $$\boxed{\;\begin{aligned} v_1 &= M\big(u_1\sin\theta - u_2\cos\theta\big) + z\,\dot\theta^2, \\[4pt] v_2 &= M\big(u_1\cos\theta + u_2\sin\theta\big) - 2\,\dot z\,\dot\theta. \end{aligned}\;}$$
+
+    This is the **second auxiliary system**. It is a purely *static* feedback (no internal state): it takes as input the new control $u = (u_1, u_2)$ along with the values of $\theta, \dot\theta, z, \dot z$, and produces $v = (v_1, v_2)$.
+
+    ---
+
+    ## Step 4: verification
+
+    Plug this $v$ back into the formula for $h^{(4)}$. With $v_1 - z\dot\theta^2 = M(u_1\sin\theta - u_2\cos\theta)$ and $v_2 + 2\dot z\dot\theta = M(u_1\cos\theta + u_2\sin\theta)$:
+    $$h^{(4)} = \frac{1}{M}\begin{pmatrix} \sin\theta & \cos\theta \\ -\cos\theta & \sin\theta \end{pmatrix}\begin{pmatrix} M(u_1\sin\theta - u_2\cos\theta) \\ M(u_1\cos\theta + u_2\sin\theta) \end{pmatrix}.$$
+
+    The $M$ cancels. Compute the matrix–vector product:
+
+    **First component:**
+    $$\sin\theta \cdot (u_1\sin\theta - u_2\cos\theta) + \cos\theta \cdot (u_1\cos\theta + u_2\sin\theta)$$
+    $$= u_1\sin^2\theta - u_2\sin\theta\cos\theta + u_1\cos^2\theta + u_2\sin\theta\cos\theta = u_1\,(\sin^2\theta + \cos^2\theta) = u_1. \checkmark$$
+
+    **Second component:**
+    $$-\cos\theta \cdot (u_1\sin\theta - u_2\cos\theta) + \sin\theta \cdot (u_1\cos\theta + u_2\sin\theta)$$
+    $$= -u_1\sin\theta\cos\theta + u_2\cos^2\theta + u_1\sin\theta\cos\theta + u_2\sin^2\theta = u_2\,(\sin^2\theta + \cos^2\theta) = u_2. \checkmark$$
+
+    So:
+    $$\boxed{\;h^{(4)} = u.\;}$$
+
+    ---
+
+    ## Summary of the cascade
+
+    The full chain of feedbacks now reads:
+
+    1. **Outer input:** $u = (u_1, u_2)$ — the new "virtual" control.
+    2. **Second auxiliary system** (static, the one we just designed):
+    $$v_1 = M(u_1\sin\theta - u_2\cos\theta) + z\dot\theta^2, \qquad v_2 = M(u_1\cos\theta + u_2\sin\theta) - 2\dot z\dot\theta.$$
+    3. **First auxiliary system** (dynamic, given in the problem statement):
+    $$\ddot z = v_1, \qquad \begin{pmatrix} f_x \\ f_y \end{pmatrix} = R\!\left(\theta - \frac{\pi}{2}\right)\begin{pmatrix} z - M\ell\dot\theta^2/6 \\ M\ell\, v_2/(6z) \end{pmatrix}.$$
+    4. **Booster** (the original nonlinear system) driven by $(f_x, f_y)$.
+
+    Viewed from the new input $u$ to the flat output $h$, the entire booster system becomes
+    $$h^{(4)}_1 = u_1, \qquad h^{(4)}_2 = u_2.$$
+
+    That is, **two independent chains of four integrators** — the simplest possible linear system. The nonlinearities have not been ignored or approximated: they have been **exactly cancelled** by the cascade of feedbacks.
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
     ## 🧩 State to Derivatives of the Output
 
     Implement a function `Tr` of `x, dx, y, dy, theta, dtheta, z, dz` that returns `h_x, h_y, dh_x, dh_y, d2h_x, d2h_y, d3h_x, d3h_y`.
     """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    The formulas to implement are exactly those we derived in the previous steps:
+
+    $$h=\begin{pmatrix}x-(\ell/6)\sin\theta\\ y+(\ell/6)\cos\theta\end{pmatrix},\qquad \dot h=\begin{pmatrix}\dot x-(\ell/6)\cos\theta\cdot\dot\theta\\ \dot y-(\ell/6)\sin\theta\cdot\dot\theta\end{pmatrix}$$
+
+    $$\ddot h=\begin{pmatrix}(z/M)\sin\theta\\ -(z/M)\cos\theta-g\end{pmatrix},\qquad h^{(3)}=\begin{pmatrix}(\dot z/M)\sin\theta+(z\dot\theta/M)\cos\theta\\ -(\dot z/M)\cos\theta+(z\dot\theta/M)\sin\theta\end{pmatrix}$$
+
+    Each line of code below corresponds directly to one of these formulas.
+    """)
+    return
+
+
+@app.cell
+def _(M, g, l, np):
+    def Tr(x, dx, y, dy, theta, dtheta, z, dz):
+
+        s = np.sin(theta)
+        c = np.cos(theta)
+    
+        # h
+        h_x = x - (l / 6) * s
+        h_y = y + (l / 6) * c
+    
+        # dh
+        dh_x = dx - (l / 6) * c * dtheta
+        dh_y = dy - (l / 6) * s * dtheta
+    
+        # d2h
+        d2h_x =  (z / M) * s
+        d2h_y = -(z / M) * c - g
+    
+        # d3h
+        d3h_x =  (dz / M) * s + (z * dtheta / M) * c
+        d3h_y = -(dz / M) * c + (z * dtheta / M) * s
+    
+        return h_x, h_y, dh_x, dh_y, d2h_x, d2h_y, d3h_x, d3h_y
+
     return
 
 
