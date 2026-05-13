@@ -2254,6 +2254,151 @@ def _(mo):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
+    We define $\mathbf{b}$ such that :
+    \[
+    \mathbf{b} =
+    \begin{pmatrix}
+    -\sin\theta \\
+    +\cos\theta
+    \end{pmatrix}.
+    \]
+
+    We then recognize that:
+
+    \[
+    h =
+    \begin{pmatrix}
+    x \\
+    y
+    \end{pmatrix}
+    +
+    \frac{\ell}{6}\mathbf{b}.
+    \]
+
+    ### Conclusion
+
+    The vector \( h \) represents the position of a point located on the booster axis, at a distance \( \ell/6 \) from the center of mass \( G \), in the upward direction along the booster axis.
+
+    ---
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(np, plt):
+    def draw_h_geometry():
+        # Parameters: booster of length l, tilted by theta
+        l_val = 2.0
+        theta = np.pi / 6   # 30° tilt for better visualization
+        x_G, y_G = 0.0, 0.0  # center of mass located at the origin
+    
+        # Unit vector b along the booster axis
+        bx, by = -np.sin(theta), np.cos(theta)
+    
+        # Key points
+        P_top    = np.array([x_G + (l_val/2) * bx, y_G + (l_val/2) * by])  # top
+        P_bot    = np.array([x_G - (l_val/2) * bx, y_G - (l_val/2) * by])  # base
+        G        = np.array([x_G, y_G])
+        h_point  = np.array([x_G + (l_val/6) * bx, y_G + (l_val/6) * by])
+    
+        # Figure
+        fig, ax = plt.subplots(figsize=(8, 9))
+    
+        # Reference vertical axis (gray dotted line) through G
+        ax.plot([x_G, x_G], [y_G - 1.4, y_G + 1.4],
+                color='gray', linestyle=':', linewidth=1, alpha=0.6)
+    
+        # Booster body: thin rectangle oriented along b
+        width = 0.10
+        perp = np.array([-by, bx])  # vector perpendicular to b
+        corners = np.array([
+            P_bot - width/2 * perp,
+            P_bot + width/2 * perp,
+            P_top + width/2 * perp,
+            P_top - width/2 * perp,
+        ])
+        booster = plt.Polygon(corners, closed=True,
+                              facecolor='#2c3e50', edgecolor='black', linewidth=1.5)
+        ax.add_patch(booster)
+    
+        # Booster axis (dashed line for visualization)
+        extension = 1.3
+        axe_haut = G + extension * (l_val/2) * np.array([bx, by])
+        axe_bas  = G - extension * (l_val/2) * np.array([bx, by])
+        ax.plot([axe_bas[0], axe_haut[0]], [axe_bas[1], axe_haut[1]],
+                color='#2c3e50', linestyle='--', linewidth=1, alpha=0.5)
+    
+        # Key points
+        ax.plot(*G,       'o', color='#e74c3c', markersize=12, zorder=5)
+        ax.plot(*h_point, 'o', color='#27ae60', markersize=14, zorder=5)
+        ax.plot(*P_top,   's', color='#3498db', markersize=10, zorder=5)
+        ax.plot(*P_bot,   's', color='#9b59b6', markersize=10, zorder=5)
+    
+        # Labels
+        offset = 0.18
+        ax.annotate(r'$G$  (center of mass)',
+                    xy=G, xytext=(G[0] + offset, G[1] - 0.05),
+                    fontsize=13, color='#e74c3c', fontweight='bold')
+        ax.annotate(r'$h$  ($\ell/6$ above $G$)',
+                    xy=h_point, xytext=(h_point[0] + offset, h_point[1]),
+                    fontsize=13, color='#27ae60', fontweight='bold')
+        ax.annotate(r'top  ($\ell/2$ above $G$)',
+                    xy=P_top, xytext=(P_top[0] + offset, P_top[1]),
+                    fontsize=11, color='#3498db')
+        ax.annotate(r'base $P$  (engine application point)',
+                    xy=P_bot, xytext=(P_bot[0] + offset, P_bot[1]),
+                    fontsize=11, color='#9b59b6')
+    
+        # Arrow showing the distance l/6
+        mid_h = (G + h_point) / 2
+        perp_label = np.array([-by, bx])
+        arrow_offset = mid_h - 0.35 * perp_label
+        ax.annotate('', xy=h_point - 0.30 * perp_label,
+                    xytext=G - 0.30 * perp_label,
+                    arrowprops=dict(arrowstyle='<->', color='#27ae60', lw=1.5))
+        ax.text(*(arrow_offset - 0.05 * perp_label),
+                r'$\ell/6$', fontsize=14, color='#27ae60',
+                ha='center', va='center', fontweight='bold',
+                bbox=dict(boxstyle='round,pad=0.2', facecolor='white',
+                          edgecolor='#27ae60'))
+    
+        # Angle theta between the vertical axis and the booster axis
+        arc_r = 0.35
+        arc_angles = np.linspace(np.pi/2, np.pi/2 + theta, 30)
+        arc_x = x_G + arc_r * np.cos(arc_angles)
+        arc_y = y_G + arc_r * np.sin(arc_angles)
+        ax.plot(arc_x, arc_y, color='black', lw=1.2)
+        ax.text(x_G - 0.05, y_G + arc_r + 0.10, r'$\theta$',
+                fontsize=14, ha='center')
+    
+        # Vector b
+        ax.annotate('', xy=G + 0.5 * np.array([bx, by]), xytext=G,
+                    arrowprops=dict(arrowstyle='->', color='#16a085', lw=2))
+        ax.text(*(G + 0.55 * np.array([bx, by]) + 0.1 * perp_label),
+                r'$\vec{b}$', fontsize=15, color='#16a085', fontweight='bold')
+    
+        # Final formatting
+        ax.set_xlim(-1.6, 2.2)
+        ax.set_ylim(-1.8, 2.0)
+        ax.set_aspect('equal')
+        ax.grid(True, alpha=0.3)
+        ax.set_title(
+            r"Geometric interpretation of $h$: "
+            r"point located on the booster axis, at $\ell/6$ above $G$",
+            fontsize=12)
+        ax.set_xlabel('$x$')
+        ax.set_ylabel('$y$')
+    
+        plt.tight_layout()
+        return plt.gcf()
+
+    draw_h_geometry()
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
     ## 🧩 First and Second-Order Derivatives
 
     Compute $\dot{h}$ as a function of $\dot{x}$, $\dot{y}$, $\theta$ and $\dot{\theta}$ (and constants) and then $\ddot{h}$ as a function of $\theta$ and $z$ (and constants) when the auxiliary system is plugged in the booster.
