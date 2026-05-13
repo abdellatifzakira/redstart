@@ -2409,6 +2409,187 @@ def _(mo):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
+    ## Setup
+
+    The output is
+    $$h = \begin{pmatrix} x - (\ell/6)\sin\theta \\ y + (\ell/6)\cos\theta \end{pmatrix}.$$
+
+    We will need the time derivatives of $\sin\theta$ and $\cos\theta$:
+    $$\frac{d}{dt}\sin\theta = \cos\theta \cdot \dot\theta, \qquad \frac{d}{dt}\cos\theta = -\sin\theta \cdot \dot\theta.$$
+
+    ---
+
+    ## Step 1: first derivative $\dot h$
+
+    Differentiate $h$ component by component.
+
+    For the first component:
+    $$\frac{d}{dt}\big( x - (\ell/6)\sin\theta \big) = \dot x - (\ell/6)\cos\theta \cdot \dot\theta.$$
+
+    For the second component:
+    $$\frac{d}{dt}\big( y + (\ell/6)\cos\theta \big) = \dot y - (\ell/6)\sin\theta \cdot \dot\theta.$$
+
+    So:
+    $$\dot h = \begin{pmatrix} \dot x - (\ell/6)\cos\theta \cdot \dot\theta \\ \dot y - (\ell/6)\sin\theta \cdot \dot\theta \end{pmatrix}.$$
+
+    This depends only on $\dot x, \dot y, \theta, \dot\theta$, as required.
+
+    ---
+
+    ## Step 2: second derivative $\ddot h$ (kinematic form)
+
+    Differentiate again, component by component.
+
+    **First component.** Differentiate $\dot x - (\ell/6)\cos\theta \cdot \dot\theta$ using the product rule on the second term:
+    $$\ddot x - (\ell/6)\big[ -\sin\theta \cdot \dot\theta \cdot \dot\theta + \cos\theta \cdot \ddot\theta \big] = \ddot x + (\ell/6)\sin\theta \cdot \dot\theta^2 - (\ell/6)\cos\theta \cdot \ddot\theta.$$
+
+    **Second component.** Differentiate $\dot y - (\ell/6)\sin\theta \cdot \dot\theta$ similarly:
+    $$\ddot y - (\ell/6)\big[ \cos\theta \cdot \dot\theta \cdot \dot\theta + \sin\theta \cdot \ddot\theta \big] = \ddot y - (\ell/6)\cos\theta \cdot \dot\theta^2 - (\ell/6)\sin\theta \cdot \ddot\theta.$$
+
+    So:
+    $$\ddot h = \begin{pmatrix} \ddot x + (\ell/6)\sin\theta \cdot \dot\theta^2 - (\ell/6)\cos\theta \cdot \ddot\theta \\ \ddot y - (\ell/6)\cos\theta \cdot \dot\theta^2 - (\ell/6)\sin\theta \cdot \ddot\theta \end{pmatrix}. \tag{$\star$}$$
+
+    ---
+
+    ## Step 3: substitute Newton's equations
+
+    From the dynamics:
+    $$\ddot x = \frac{f_x}{M}, \qquad \ddot y = \frac{f_y}{M} - g, \qquad \ddot\theta = \frac{\tau}{J} \quad \text{with } J = \frac{M\ell^2}{12}.$$
+
+    The torque about $G$ produced by the force $(f_x, f_y)$ applied at the base point $P$ (located at $G + ((\ell/2)\sin\theta, -(\ell/2)\cos\theta)^\top$) is:
+    $$\tau = (\ell/2)\sin\theta \cdot f_y - \big(-(\ell/2)\cos\theta\big) \cdot f_x = (\ell/2)\big( \sin\theta \cdot f_y + \cos\theta \cdot f_x \big).$$
+
+    Therefore:
+    $$\ddot\theta = \frac{(\ell/2)(\sin\theta \cdot f_y + \cos\theta \cdot f_x)}{M\ell^2/12} = \frac{6}{M\ell}\big( \sin\theta \cdot f_y + \cos\theta \cdot f_x \big). \tag{$\tau$}$$
+
+    ---
+
+    ## Step 4: matrix calculation
+
+    The auxiliary system gives:
+    $$\begin{pmatrix} f_x \\ f_y \end{pmatrix} = R\!\left(\theta - \frac{\pi}{2}\right) \begin{pmatrix} z - M\ell\dot\theta^2/6 \\ M\ell\, v_2/(6z) \end{pmatrix}.$$
+
+    ### Step 4a — Compute $R(\theta - \pi/2)$ explicitly
+
+    Using $\cos(\theta - \pi/2) = \sin\theta$ and $\sin(\theta - \pi/2) = -\cos\theta$:
+    $$R\!\left(\theta - \frac{\pi}{2}\right) = \begin{pmatrix} \cos(\theta-\pi/2) & -\sin(\theta-\pi/2) \\ \sin(\theta-\pi/2) & -\cos(\theta-\pi/2) \end{pmatrix} = \begin{pmatrix} \sin\theta & \cos\theta \\ -\cos\theta & \sin\theta \end{pmatrix}.$$
+
+    ### Step 4b — Perform the matrix-vector product
+
+    Let $A = z - M\ell\dot\theta^2/6$ and $B = M\ell v_2/(6z)$ to keep the algebra readable. Then:
+    $$\begin{pmatrix} f_x \\ f_y \end{pmatrix} = \begin{pmatrix} \sin\theta & \cos\theta \\ -\cos\theta & \sin\theta \end{pmatrix} \begin{pmatrix} A \\ B \end{pmatrix} = \begin{pmatrix} A\sin\theta + B\cos\theta \\ -A\cos\theta + B\sin\theta \end{pmatrix}.$$
+
+    Writing out $A$ and $B$:
+    $$f_x = \left( z - \frac{M\ell\dot\theta^2}{6} \right)\sin\theta + \frac{M\ell v_2}{6z}\,\cos\theta,$$
+    $$f_y = -\left( z - \frac{M\ell\dot\theta^2}{6} \right)\cos\theta + \frac{M\ell v_2}{6z}\,\sin\theta.$$
+
+    ### Step 4c — Compute $\ddot x = f_x/M$ and $\ddot y = f_y/M - g$
+
+    Dividing by $M$:
+    $$\ddot x = \left( \frac{z}{M} - \frac{\ell\dot\theta^2}{6} \right)\sin\theta + \frac{\ell v_2}{6z}\,\cos\theta,$$
+    $$\ddot y = -\left( \frac{z}{M} - \frac{\ell\dot\theta^2}{6} \right)\cos\theta + \frac{\ell v_2}{6z}\,\sin\theta - g.$$
+
+    ### Step 4d — Compute $\ddot\theta$ via formula $(\tau)$
+
+    We need $\sin\theta \cdot f_y + \cos\theta \cdot f_x$. Substituting:
+    $$\sin\theta \cdot f_y = -\left( z - \frac{M\ell\dot\theta^2}{6} \right)\sin\theta\cos\theta + \frac{M\ell v_2}{6z}\sin^2\theta,$$
+    $$\cos\theta \cdot f_x = \left( z - \frac{M\ell\dot\theta^2}{6} \right)\sin\theta\cos\theta + \frac{M\ell v_2}{6z}\cos^2\theta.$$
+
+    Adding: the two $\sin\theta\cos\theta$ terms **cancel**, and the $\sin^2\theta + \cos^2\theta = 1$ identity gives:
+    $$\sin\theta \cdot f_y + \cos\theta \cdot f_x = \frac{M\ell v_2}{6z}.$$
+
+    Therefore:
+    $$\ddot\theta = \frac{6}{M\ell} \cdot \frac{M\ell v_2}{6z} = \frac{v_2}{z}.$$
+
+    ### Step 4e — Assemble $\ddot h$ from $(\star)$, first component
+
+    We need to compute:
+    $$\ddot h_1 = \ddot x + (\ell/6)\sin\theta \cdot \dot\theta^2 - (\ell/6)\cos\theta \cdot \ddot\theta.$$
+
+    Substitute $\ddot x$ and $\ddot\theta = v_2/z$:
+    $$\ddot h_1 = \left( \frac{z}{M} - \frac{\ell\dot\theta^2}{6} \right)\sin\theta + \frac{\ell v_2}{6z}\cos\theta + \frac{\ell\sin\theta \cdot \dot\theta^2}{6} - \frac{\ell\cos\theta \cdot v_2}{6z}.$$
+
+    Group the terms:
+
+    - **$\dot\theta^2$ terms:** $-\dfrac{\ell\dot\theta^2 \sin\theta}{6} + \dfrac{\ell\sin\theta \cdot \dot\theta^2}{6} = 0$. ✓ **They cancel.**
+    - **$v_2$ terms:** $+\dfrac{\ell v_2 \cos\theta}{6z} - \dfrac{\ell v_2 \cos\theta}{6z} = 0$. ✓ **They cancel.**
+
+    What's left:
+    $$\ddot h_1 = \frac{z}{M}\sin\theta.$$
+
+    ### Step 4f — Assemble $\ddot h$ from $(\star)$, second component
+
+    Similarly:
+    $$\ddot h_2 = \ddot y - (\ell/6)\cos\theta \cdot \dot\theta^2 - (\ell/6)\sin\theta \cdot \ddot\theta.$$
+
+    Substitute:
+    $$\ddot h_2 = -\left( \frac{z}{M} - \frac{\ell\dot\theta^2}{6} \right)\cos\theta + \frac{\ell v_2}{6z}\sin\theta - g - \frac{\ell\cos\theta \cdot \dot\theta^2}{6} - \frac{\ell\sin\theta \cdot v_2}{6z}.$$
+
+    Group:
+
+    - **$\dot\theta^2$ terms:** $+\dfrac{\ell\dot\theta^2\cos\theta}{6} - \dfrac{\ell\cos\theta\cdot\dot\theta^2}{6} = 0$. ✓ **They cancel.**
+    - **$v_2$ terms:** $+\dfrac{\ell v_2 \sin\theta}{6z} - \dfrac{\ell v_2 \sin\theta}{6z} = 0$. ✓ **They cancel.**
+
+    What's left:
+    $$\ddot h_2 = -\frac{z}{M}\cos\theta - g.$$
+
+    ### Step 4g — Final result
+
+    Combining both components:
+
+    $$\boxed{\ddot h=\begin{pmatrix}-\dfrac{z}{M}\sin\theta\\ \dfrac{z}{M}\cos\theta-g\end{pmatrix}=\frac{z}{M}\begin{pmatrix}-\sin\theta\\ \cos\theta\end{pmatrix}+\begin{pmatrix}0\\ -g\end{pmatrix}}$$
+
+    This depends only on $\theta$ and $z$ — no more $\dot\theta^2$, no more $v_2$, no more $\dot x, \dot y$. Mission accomplished.
+
+    ---
+    What happens here is :
+
+    At the beginning, the booster dynamics are highly nonlinear and difficult to control directly.
+    When we differentiate $h$, many unwanted terms appear, especially:
+
+    - terms in $\dot{\theta}^2$ coming from rotations,
+    - terms involving $v_2$ through $\ddot{\theta}$.
+
+    Normally, these nonlinear coupling terms make trajectory planning complicated because every variable interacts with the others.
+
+    The key idea is that we do **not** choose $(f_x,f_y)$ arbitrarily.
+    Instead, we design them very carefully so they generate *exactly the opposite nonlinear terms* needed to cancel the bad ones.
+
+    So the controller is essentially saying:
+
+    > “Whenever the dynamics create unwanted nonlinear effects, I inject equal and opposite effects to remove them.”
+
+    After these cancellations, the complicated dynamics collapse into a much simpler form:
+
+    $$\boxed{\ddot h=\begin{pmatrix}-\dfrac{z}{M}\sin\theta\\ \dfrac{z}{M}\cos\theta-g\end{pmatrix}=\frac{z}{M}\begin{pmatrix}-\sin\theta\\ \cos\theta\end{pmatrix}+\begin{pmatrix}0\\ -g\end{pmatrix}}$$
+
+
+    At this point, the system behaves almost like a particle pushed by a controllable thrust.
+
+    ---
+
+    ## Why introducing $z$ helps
+
+    The auxiliary variable $z$ is introduced to make the thrust dynamics easier to manipulate.
+
+    Instead of controlling the thrust in a complicated nonlinear way, we define:
+
+    \[
+    \ddot z = v_1.
+    \]
+
+    This is extremely important because a double integrator is one of the simplest systems in control theory.
+
+    So rather than fighting the original nonlinear booster directly, we transform the problem into controlling simpler artificial variables $(z,\theta)$.
+
+    ---
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
     ## 🧩 Third and Fourth-Order Derivatives
 
     Compute the third derivative $h^{(3)}$ of $h$ as a function of $\theta$ and $z$ (and constants) and then the fourth derivative $h^{(4)}$ of $h$ with respect to time as a function of $\theta$, $\dot{\theta}$, $z$, $\dot{z}$, $v$ (and constants) when the auxiliary system is on.
