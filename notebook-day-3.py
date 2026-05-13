@@ -2194,9 +2194,10 @@ def _(mo):
     Let
     $$
     R(\alpha) =
-    \begin{bmatrix} +\cos \alpha & -\sin \alpha \\ +\sin \alpha & -\cos \alpha
+    \begin{bmatrix} +\cos \alpha & -\sin \alpha \\ +\sin \alpha & +\cos \alpha
     \end{bmatrix}
     $$
+    (réctifié)
 
     Consider an auxiliary system which is meant to compute the force $(f_x, f_y)$ applied to the booster.
 
@@ -2414,7 +2415,10 @@ def _(mo):
     The output is
     $$h = \begin{pmatrix} x - (\ell/6)\sin\theta \\ y + (\ell/6)\cos\theta \end{pmatrix}.$$
 
-    We will need the time derivatives of $\sin\theta$ and $\cos\theta$:
+    The rotation matrix used in the auxiliary system is
+    $$R(\alpha) = \begin{pmatrix} \cos\alpha & -\sin\alpha \\ \sin\alpha & +\cos\alpha \end{pmatrix}.$$
+
+    Time derivatives of trigonometric functions:
     $$\frac{d}{dt}\sin\theta = \cos\theta \cdot \dot\theta, \qquad \frac{d}{dt}\cos\theta = -\sin\theta \cdot \dot\theta.$$
 
     ---
@@ -2430,7 +2434,7 @@ def _(mo):
     $$\frac{d}{dt}\big( y + (\ell/6)\cos\theta \big) = \dot y - (\ell/6)\sin\theta \cdot \dot\theta.$$
 
     So:
-    $$\dot h = \begin{pmatrix} \dot x - (\ell/6)\cos\theta \cdot \dot\theta \\ \dot y - (\ell/6)\sin\theta \cdot \dot\theta \end{pmatrix}.$$
+    $$\boxed{\dot h = \begin{pmatrix} \dot x - (\ell/6)\cos\theta \cdot \dot\theta \\ \dot y - (\ell/6)\sin\theta \cdot \dot\theta \end{pmatrix}}.$$
 
     This depends only on $\dot x, \dot y, \theta, \dot\theta$, as required.
 
@@ -2440,7 +2444,7 @@ def _(mo):
 
     Differentiate again, component by component.
 
-    **First component.** Differentiate $\dot x - (\ell/6)\cos\theta \cdot \dot\theta$ using the product rule on the second term:
+    **First component.** Differentiate $\dot x - (\ell/6)\cos\theta \cdot \dot\theta$ using the product rule:
     $$\ddot x - (\ell/6)\big[ -\sin\theta \cdot \dot\theta \cdot \dot\theta + \cos\theta \cdot \ddot\theta \big] = \ddot x + (\ell/6)\sin\theta \cdot \dot\theta^2 - (\ell/6)\cos\theta \cdot \ddot\theta.$$
 
     **Second component.** Differentiate $\dot y - (\ell/6)\sin\theta \cdot \dot\theta$ similarly:
@@ -2472,11 +2476,11 @@ def _(mo):
     ### Step 4a — Compute $R(\theta - \pi/2)$ explicitly
 
     Using $\cos(\theta - \pi/2) = \sin\theta$ and $\sin(\theta - \pi/2) = -\cos\theta$:
-    $$R\!\left(\theta - \frac{\pi}{2}\right) = \begin{pmatrix} \cos(\theta-\pi/2) & -\sin(\theta-\pi/2) \\ \sin(\theta-\pi/2) & -\cos(\theta-\pi/2) \end{pmatrix} = \begin{pmatrix} \sin\theta & \cos\theta \\ -\cos\theta & \sin\theta \end{pmatrix}.$$
+    $$R\!\left(\theta - \frac{\pi}{2}\right) = \begin{pmatrix} \cos(\theta-\pi/2) & -\sin(\theta-\pi/2) \\ \sin(\theta-\pi/2) & +\cos(\theta-\pi/2) \end{pmatrix} = \begin{pmatrix} \sin\theta & \cos\theta \\ -\cos\theta & \sin\theta \end{pmatrix}.$$
 
     ### Step 4b — Perform the matrix-vector product
 
-    Let $A = z - M\ell\dot\theta^2/6$ and $B = M\ell v_2/(6z)$ to keep the algebra readable. Then:
+    Let $A = z - M\ell\dot\theta^2/6$ and $B = M\ell v_2/(6z)$:
     $$\begin{pmatrix} f_x \\ f_y \end{pmatrix} = \begin{pmatrix} \sin\theta & \cos\theta \\ -\cos\theta & \sin\theta \end{pmatrix} \begin{pmatrix} A \\ B \end{pmatrix} = \begin{pmatrix} A\sin\theta + B\cos\theta \\ -A\cos\theta + B\sin\theta \end{pmatrix}.$$
 
     Writing out $A$ and $B$:
@@ -2491,11 +2495,11 @@ def _(mo):
 
     ### Step 4d — Compute $\ddot\theta$ via formula $(\tau)$
 
-    We need $\sin\theta \cdot f_y + \cos\theta \cdot f_x$. Substituting:
+    We need $\sin\theta \cdot f_y + \cos\theta \cdot f_x$:
     $$\sin\theta \cdot f_y = -\left( z - \frac{M\ell\dot\theta^2}{6} \right)\sin\theta\cos\theta + \frac{M\ell v_2}{6z}\sin^2\theta,$$
     $$\cos\theta \cdot f_x = \left( z - \frac{M\ell\dot\theta^2}{6} \right)\sin\theta\cos\theta + \frac{M\ell v_2}{6z}\cos^2\theta.$$
 
-    Adding: the two $\sin\theta\cos\theta$ terms **cancel**, and the $\sin^2\theta + \cos^2\theta = 1$ identity gives:
+    Adding: the two $\sin\theta\cos\theta$ terms **cancel**, and $\sin^2\theta + \cos^2\theta = 1$:
     $$\sin\theta \cdot f_y + \cos\theta \cdot f_x = \frac{M\ell v_2}{6z}.$$
 
     Therefore:
@@ -2503,86 +2507,53 @@ def _(mo):
 
     ### Step 4e — Assemble $\ddot h$ from $(\star)$, first component
 
-    We need to compute:
     $$\ddot h_1 = \ddot x + (\ell/6)\sin\theta \cdot \dot\theta^2 - (\ell/6)\cos\theta \cdot \ddot\theta.$$
 
     Substitute $\ddot x$ and $\ddot\theta = v_2/z$:
-    $$\ddot h_1 = \left( \frac{z}{M} - \frac{\ell\dot\theta^2}{6} \right)\sin\theta + \frac{\ell v_2}{6z}\cos\theta + \frac{\ell\sin\theta \cdot \dot\theta^2}{6} - \frac{\ell\cos\theta \cdot v_2}{6z}.$$
+    $$\ddot h_1 = \left( \frac{z}{M} - \frac{\ell\dot\theta^2}{6} \right)\sin\theta + \frac{\ell v_2}{6z}\cos\theta + \frac{\ell\dot\theta^2 \sin\theta}{6} - \frac{\ell v_2 \cos\theta}{6z}.$$
 
-    Group the terms:
-
-    - **$\dot\theta^2$ terms:** $-\dfrac{\ell\dot\theta^2 \sin\theta}{6} + \dfrac{\ell\sin\theta \cdot \dot\theta^2}{6} = 0$. ✓ **They cancel.**
-    - **$v_2$ terms:** $+\dfrac{\ell v_2 \cos\theta}{6z} - \dfrac{\ell v_2 \cos\theta}{6z} = 0$. ✓ **They cancel.**
+    Group:
+    - **$\dot\theta^2$ terms:** $-\dfrac{\ell\dot\theta^2 \sin\theta}{6} + \dfrac{\ell\dot\theta^2 \sin\theta}{6} = 0$. ✓
+    - **$v_2$ terms:** $+\dfrac{\ell v_2 \cos\theta}{6z} - \dfrac{\ell v_2 \cos\theta}{6z} = 0$. ✓
 
     What's left:
-    $$\ddot h_1 = \frac{z}{M}\sin\theta.$$
+    $$\ddot h_1 = +\frac{z}{M}\sin\theta.$$
 
     ### Step 4f — Assemble $\ddot h$ from $(\star)$, second component
 
-    Similarly:
     $$\ddot h_2 = \ddot y - (\ell/6)\cos\theta \cdot \dot\theta^2 - (\ell/6)\sin\theta \cdot \ddot\theta.$$
 
     Substitute:
-    $$\ddot h_2 = -\left( \frac{z}{M} - \frac{\ell\dot\theta^2}{6} \right)\cos\theta + \frac{\ell v_2}{6z}\sin\theta - g - \frac{\ell\cos\theta \cdot \dot\theta^2}{6} - \frac{\ell\sin\theta \cdot v_2}{6z}.$$
+    $$\ddot h_2 = -\left( \frac{z}{M} - \frac{\ell\dot\theta^2}{6} \right)\cos\theta + \frac{\ell v_2}{6z}\sin\theta - g - \frac{\ell\dot\theta^2 \cos\theta}{6} - \frac{\ell v_2 \sin\theta}{6z}.$$
 
     Group:
-
-    - **$\dot\theta^2$ terms:** $+\dfrac{\ell\dot\theta^2\cos\theta}{6} - \dfrac{\ell\cos\theta\cdot\dot\theta^2}{6} = 0$. ✓ **They cancel.**
-    - **$v_2$ terms:** $+\dfrac{\ell v_2 \sin\theta}{6z} - \dfrac{\ell v_2 \sin\theta}{6z} = 0$. ✓ **They cancel.**
+    - **$\dot\theta^2$ terms:** $+\dfrac{\ell\dot\theta^2 \cos\theta}{6} - \dfrac{\ell\dot\theta^2 \cos\theta}{6} = 0$. ✓
+    - **$v_2$ terms:** $+\dfrac{\ell v_2 \sin\theta}{6z} - \dfrac{\ell v_2 \sin\theta}{6z} = 0$. ✓
 
     What's left:
     $$\ddot h_2 = -\frac{z}{M}\cos\theta - g.$$
 
     ### Step 4g — Final result
 
-    Combining both components:
-
-    $$\boxed{\ddot h=\begin{pmatrix}-\dfrac{z}{M}\sin\theta\\ \dfrac{z}{M}\cos\theta-g\end{pmatrix}=\frac{z}{M}\begin{pmatrix}-\sin\theta\\ \cos\theta\end{pmatrix}+\begin{pmatrix}0\\ -g\end{pmatrix}}$$
+    $$\boxed{\;\ddot h = \begin{pmatrix} +\dfrac{z}{M}\sin\theta \\[6pt] -\dfrac{z}{M}\cos\theta - g \end{pmatrix} = \frac{z}{M}\begin{pmatrix} +\sin\theta \\ -\cos\theta \end{pmatrix} + \begin{pmatrix} 0 \\ -g \end{pmatrix}.\;}$$
 
     This depends only on $\theta$ and $z$ — no more $\dot\theta^2$, no more $v_2$, no more $\dot x, \dot y$. Mission accomplished.
 
     ---
-    What happens here is :
 
-    At the beginning, the booster dynamics are highly nonlinear and difficult to control directly.
-    When we differentiate $h$, many unwanted terms appear, especially:
+    ## What this really means
 
-    - terms in $\dot{\theta}^2$ coming from rotations,
-    - terms involving $v_2$ through $\ddot{\theta}$.
+    Look at the boxed result. It says something very simple:
 
-    Normally, these nonlinear coupling terms make trajectory planning complicated because every variable interacts with the others.
+    > The acceleration of $h$ is just **gravity plus a thrust along the booster's body axis**.
 
-    The key idea is that we do **not** choose $(f_x,f_y)$ arbitrarily.
-    Instead, we design them very carefully so they generate *exactly the opposite nonlinear terms* needed to cancel the bad ones.
+    The vector $(+\sin\theta, -\cos\theta)$ is exactly the unit vector pointing from the top of the booster down toward its base — the direction in which the reactor pushes the body. And the scalar $z/M$ is the magnitude of that thrust.
 
-    So the controller is essentially saying:
+    So the booster, viewed through the output $h$, behaves like a **simple point mass with a controllable thrust** along its axis. No coupling with rotation, no quadratic velocity term, no rotational inertia effect. The system has become as simple as a rocket in a video game.
 
-    > “Whenever the dynamics create unwanted nonlinear effects, I inject equal and opposite effects to remove them.”
+    This is the whole point of introducing the auxiliary variable $z$. By choosing the formula for $(f_x, f_y)$ very carefully, every awkward term that appears in the differentiation ($\dot\theta^2$ from rotation, $v_2$ from angular acceleration) is matched by an equal and opposite term coming from $f_x, f_y$. The two sets of terms erase each other, and what survives is the clean expression above.
 
-    After these cancellations, the complicated dynamics collapse into a much simpler form:
-
-    $$\boxed{\ddot h=\begin{pmatrix}-\dfrac{z}{M}\sin\theta\\ \dfrac{z}{M}\cos\theta-g\end{pmatrix}=\frac{z}{M}\begin{pmatrix}-\sin\theta\\ \cos\theta\end{pmatrix}+\begin{pmatrix}0\\ -g\end{pmatrix}}$$
-
-
-    At this point, the system behaves almost like a particle pushed by a controllable thrust.
-
-    ---
-
-    ## Why introducing $z$ helps
-
-    The auxiliary variable $z$ is introduced to make the thrust dynamics easier to manipulate.
-
-    Instead of controlling the thrust in a complicated nonlinear way, we define:
-
-    \[
-    \ddot z = v_1.
-    \]
-
-    This is extremely important because a double integrator is one of the simplest systems in control theory.
-
-    So rather than fighting the original nonlinear booster directly, we transform the problem into controlling simpler artificial variables $(z,\theta)$.
-
-    ---
+    The variable $z$ plays the role of a "thrust knob." Since $\ddot z = v_1$, controlling $z$ is just controlling a double integrator — the easiest object in control theory. We trade a hard nonlinear problem for a much simpler one.
     """)
     return
 
