@@ -2844,6 +2844,263 @@ def _(mo):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
+    \[
+    T_r : (x,\dot x,y,\dot y,\theta,\dot\theta,z,\dot z) \mapsto (h,\dot h,\ddot h,h^{(3)})
+    \]
+
+    The objective is to reconstruct the full booster state and auxiliary system state from:
+
+    \[
+    (h,\dot h,\ddot h,h^{(3)})
+    \]
+
+    assuming:
+
+    \[
+    z < 0
+    \]
+
+    ---
+
+    # 1. Recovering \(z\)
+
+    From the transformation:
+
+    \[
+    \ddot h_x = \frac{z}{M}\sin\theta
+    \]
+
+    and
+
+    \[
+    \ddot h_y = -\frac{z}{M}\cos\theta - g
+    \]
+
+    we obtain:
+
+    \[
+    \ddot h_y + g = -\frac{z}{M}\cos\theta
+    \]
+
+    Squaring and summing:
+
+    \[
+    (\ddot h_x)^2 + (\ddot h_y + g)^2 = \frac{z^2}{M^2}
+    \]
+
+    since:
+
+    \[
+    \sin^2\theta + \cos^2\theta = 1
+    \]
+
+    Thus:
+
+    \[
+    |z| = M\sqrt{(\ddot h_x)^2 + (\ddot h_y + g)^2}
+    \]
+
+    Because the assumption imposes:
+
+    \[
+    z < 0
+    \]
+
+    we uniquely obtain:
+
+    \[
+    z = -M\sqrt{(\ddot h_x)^2 + (\ddot h_y + g)^2}
+    \]
+
+    ---
+
+    # 2. Recovering \(\theta\)
+
+    Using:
+
+    \[
+    \sin\theta = \frac{M\ddot h_x}{z}
+    \]
+
+    and
+
+    \[
+    \cos\theta = -\frac{M(\ddot h_y+g)}{z}
+    \]
+
+    we reconstruct:
+
+    \[
+    \theta = \operatorname{atan2}\left(\frac{M\ddot h_x}{z},-\frac{M(\ddot h_y+g)}{z}\right)
+    \]
+
+    The use of `atan2` guarantees the correct quadrant.
+
+    ---
+
+    # 3. Recovering \(\dot z\) and \(\dot\theta\)
+
+    From:
+
+    \[
+    h_x^{(3)} = \frac{\dot z}{M}\sin\theta + \frac{z\dot\theta}{M}\cos\theta
+    \]
+
+    and
+
+    \[
+    h_y^{(3)} = -\frac{\dot z}{M}\cos\theta + \frac{z\dot\theta}{M}\sin\theta
+    \]
+
+    we obtain the linear system:
+
+    \[
+    M\begin{pmatrix}h_x^{(3)} \\ h_y^{(3)}\end{pmatrix} = \begin{pmatrix}\sin\theta & z\cos\theta \\ -\cos\theta & z\sin\theta\end{pmatrix}\begin{pmatrix}\dot z \\ \dot\theta\end{pmatrix}
+    \]
+
+    The determinant is:
+
+    \[
+    \det = z
+    \]
+
+    which is nonzero because:
+
+    \[
+    z < 0
+    \]
+
+    Therefore the system is invertible.
+
+    ---
+
+    # 4. Recovering \(x\) and \(y\)
+
+    From:
+
+    \[
+    h_x = x - \frac{\ell}{6}\sin\theta
+    \]
+
+    and
+
+    \[
+    h_y = y + \frac{\ell}{6}\cos\theta
+    \]
+
+    we obtain:
+
+    \[
+    x = h_x + \frac{\ell}{6}\sin\theta
+    \]
+
+    and
+
+    \[
+    y = h_y - \frac{\ell}{6}\cos\theta
+    \]
+
+    ---
+
+    # 5. Recovering \(\dot x\) and \(\dot y\)
+
+    From:
+
+    \[
+    \dot h_x = \dot x - \frac{\ell}{6}\cos\theta\,\dot\theta
+    \]
+
+    and
+
+    \[
+    \dot h_y = \dot y - \frac{\ell}{6}\sin\theta\,\dot\theta
+    \]
+
+    we obtain:
+
+    \[
+    \dot x = \dot h_x + \frac{\ell}{6}\cos\theta\,\dot\theta
+    \]
+
+    and
+
+    \[
+    \dot y = \dot h_y + \frac{\ell}{6}\sin\theta\,\dot\theta
+    \]
+
+    ---
+
+    # Conclusion
+
+    The transformation \(T_r\) is invertible as long as:
+
+    \[
+    z \neq 0
+    \]
+
+    and under the imposed assumption:
+
+    \[
+    z < 0
+    \]
+
+    the inversion becomes unique.
+
+    This proves that the output \(h\) is a flat output since the full state and auxiliary variables can be reconstructed from a finite number of derivatives of \(h\).
+    """)
+    return
+
+
+@app.cell
+def _(M, g, l, np):
+    def T_inv(
+        h_x, h_y,
+        dh_x, dh_y,
+        d2h_x, d2h_y,
+        d3h_x, d3h_y
+    ):
+
+        z = -M * np.sqrt(
+            d2h_x**2 +
+            (d2h_y + g)**2
+        )
+
+        s = M * d2h_x / z
+        c = -M * (d2h_y + g) / z
+
+        theta = np.arctan2(s, c)
+
+        A = np.array([
+            [s, z * c],
+            [-c, z * s]
+        ])
+
+        b = M * np.array([
+            d3h_x,
+            d3h_y
+        ])
+
+        dz, dtheta = np.linalg.solve(A, b)
+
+        x = h_x + (l / 6) * s
+        y = h_y - (l / 6) * c
+
+        dx = dh_x + (l / 6) * c * dtheta
+        dy = dh_y + (l / 6) * s * dtheta
+
+        return (
+            x, dx,
+            y, dy,
+            theta, dtheta,
+            z, dz
+        )
+
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
     ## 🧩 Admissible Path Computation
 
     Implement a function
