@@ -2825,7 +2825,7 @@ def _(M, g, l, np):
     
         return h_x, h_y, dh_x, dh_y, d2h_x, d2h_y, d3h_x, d3h_y
 
-    return
+    return (Tr,)
 
 
 @app.cell(hide_code=True)
@@ -3053,7 +3053,7 @@ def _(mo):
 
 @app.cell
 def _(M, g, l, np):
-    def T_inv(
+    def Tr_inv(
         h_x, h_y,
         dh_x, dh_y,
         d2h_x, d2h_y,
@@ -3095,7 +3095,7 @@ def _(M, g, l, np):
             z, dz
         )
 
-    return
+    return (Tr_inv,)
 
 
 @app.cell(hide_code=True)
@@ -3130,6 +3130,447 @@ def _(mo):
     ```
 
     that returns a function `fun` such that `fun(t)` is a value of `x, dx, y, dy, theta, dtheta, z, dz, f, phi` at time `t` that match the initial and final values provided as arguments to `compute`.
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    Before diving into individual lines, keep in mind what the function does at a high level. It receives the initial state of the booster, the desired final state, and the transit time $t_f$. It must return a function `fun(t)` that gives, for every $t \in [0, t_f]$, the full state of the booster together with the command $(f, \phi)$ to apply.
+
+    The plan has three stages:
+
+    1. Translate the initial and final states into **boundary conditions on $h(t)$**.
+    2. Find the coefficients of the **degree-7 polynomial** that satisfies these conditions.
+    3. Build `fun(t)` which, for each $t$, **evaluates the polynomial** and then reconstructs the state and command.
+
+    ---
+
+    ## Step 1 — the signature
+
+    ```python
+    def compute(
+        x_0, dx_0, y_0, dy_0, theta_0, dtheta_0, z_0, dz_0,
+        x_tf, dx_tf, y_tf, dy_tf, theta_tf, dtheta_tf, z_tf, dz_tf,
+        tf,
+    ):
+    ```
+
+    Nothing tricky here: 8 arguments for the initial state at $t = 0$, 8 arguments for the final state at $t = t_f$, plus $t_f$ itself — 17 parameters in total.
+
+    Each state contains:
+    - the position $(x, y)$ and velocity $(\dot x, \dot y)$ of the center of mass,
+    - the angle $\theta$ and angular velocity $\dot\theta$,
+    - the auxiliary variable $z$ and its derivative $\dot z$.
+
+    ---
+
+    ## Step 2 — translation to flat coordinates
+
+    ```python
+    H0  = Tr(x_0,  dx_0,  y_0,  dy_0,  theta_0,  dtheta_0,  z_0,  dz_0)
+    Htf = Tr(x_tf, dx_tf, y_tf, dy_tf, theta_tf, dtheta_tf, z_tf, dz_tf)
+    ```
+
+    We use the `Tr` function we wrote earlier. Recall what it does: it takes the 8 variables of the full state (booster + auxiliary) and returns 8 numbers — the components of $h, \dot h, \ddot h, h^{(3)}$:
+    $$\texttt{H} = (h_x,\, h_y,\, \dot h_x,\, \dot h_y,\, \ddot h_x,\, \ddot h_y,\, h^{(3)}_x,\, h^{(3)}_y).$$
+
+    So `H0` contains the values of $h$ and its three derivatives **at $t = 0$**, and `Htf` the same **at $t = t_f$**.
+
+    Why this translation? Because exact linearization taught us that **planning in the world of $h$ is trivial** (chain of 4 integrators), whereas planning in the world of $(x, y, \theta)$ is hard (coupled nonlinear). We move to the easy side right away.
+
+    ---
+
+    ## Step 3 — packing the boundary conditions
+
+    ```python
+    cx = np.array([H0[0], H0[2], H0[4], H0[6], Htf[0], Htf[2], Htf[4], Htf[6]])
+    cy = np.array([H0[1], H0[3], H0[5], H0[7], Htf[1], Htf[3], Htf[5], Htf[7]])
+    ```
+
+    We will build **two separate polynomials**: one for $h_x(t)$, one for $h_y(t)$. Each must satisfy 8 conditions.
+
+    For $h_x$:
+    - even indices of `H0` = $h_x,\, \dot h_x,\, \ddot h_x,\, h^{(3)}_x$ **at $t = 0$**,
+    - even indices of `Htf` = the same **at $t = t_f$**.
+
+    8 conditions total, packed into `cx`. Likewise for $h_y$ with odd indices, packed into `cy`.
+
+    The chosen order is: value, first derivative, second derivative, third derivative — first at $t = 0$, then at $t = t_f$. This order must match exactly the row order of the matrix we build next.
+
+    ---
+
+    ## Step 4 — building the linear system
+
+    We are looking for a polynomial $p(t) = a_0 + a_1 t + a_2 t^2 + \dots + a_7 t^7$, so 8 coefficients $a_0, \dots, a_7$ to determine. Each of the 8 conditions is one **linear equation** in these coefficients. We will solve $V \cdot a = c$ where $V$ is an $8 \times 8$ matrix.
+
+    ```python
+    V = np.zeros((8, 8))
+    ```
+
+    Initialize the matrix to zero.
+
+    **Recall the general formula** for the $k$-th derivative of a polynomial. If $p(t) = \sum_n a_n t^n$, then:
+    $$p^{(k)}(t) = \sum_{n \geq k} \frac{n!}{(n-k)!}\, a_n\, t^{n-k}.$$
+
+    For example:
+    - $p^{(0)}(t) = p(t) = a_0 + a_1 t + a_2 t^2 + \dots$
+    - $p^{(1)}(t) = a_1 + 2 a_2 t + 3 a_3 t^2 + \dots$
+    - $p^{(2)}(t) = 2 a_2 + 6 a_3 t + 12 a_4 t^2 + \dots$
+
+    The coefficient $\frac{n!}{(n-k)!}$ is the **falling factorial**, equal to $n \times (n-1) \times \dots \times (n-k+1)$.
+
+    **Evaluation at $t = 0$.** When we evaluate $p^{(k)}(0)$, all terms with $t^{n-k}$ for $n > k$ vanish, and only the $n = k$ term survives:
+    $$p^{(k)}(0) = \frac{k!}{0!}\, a_k = k!\, a_k.$$
+
+    This motivates these lines:
+
+    ```python
+    for k in range(4):
+        V[k, k] = factorial(k)
+    ```
+
+    For $k = 0, 1, 2, 3$, we fill `V[k, k] = k!` (the other entries of row $k$ remain zero). Concretely:
+    - row 0: `V[0, 0] = 1` → equation $a_0 = c_0$, i.e. $p(0) = h(0)$.
+    - row 1: `V[1, 1] = 1` → equation $a_1 = c_1$, i.e. $\dot p(0) = \dot h(0)$.
+    - row 2: `V[2, 2] = 2` → equation $2 a_2 = c_2$, i.e. $\ddot p(0) = \ddot h(0)$.
+    - row 3: `V[3, 3] = 6` → equation $6 a_3 = c_3$, i.e. $p^{(3)}(0) = h^{(3)}(0)$.
+
+    The first 4 rows are almost trivial: they say that $a_0, a_1, a_2, a_3$ are essentially determined by the conditions at $t = 0$.
+
+    **Evaluation at $t = t_f$.** For the 4 conditions at $t = t_f$, all terms contribute:
+
+    ```python
+        for n in range(k, 8):
+            V[k + 4, n] = (factorial(n) // factorial(n - k)) * tf ** (n - k)
+    ```
+
+    We fill row $k + 4$ (so rows 4 to 7) with the coefficients $\frac{n!}{(n-k)!}\, t_f^{n-k}$ for $n = k, k+1, \dots, 7$. This row represents the equation $p^{(k)}(t_f) = h^{(k)}(t_f)$.
+
+    For example, for $k = 0$ (row 4):
+    $$V[4, n] = t_f^n \text{ for } n = 0, \dots, 7,$$
+    which encodes the equation $a_0 + a_1 t_f + a_2 t_f^2 + \dots + a_7 t_f^7 = h(t_f)$.
+
+    The matrix $V$ is now complete. It's a variant of the Vandermonde matrix, adapted for derivative conditions rather than value-at-multiple-points conditions.
+
+    ---
+
+    ## Step 5 — solving the system
+
+    ```python
+    ax = np.linalg.solve(V, cx)
+    ay = np.linalg.solve(V, cy)
+    ```
+
+    Two calls to `numpy.linalg.solve`: one per component. We get `ax` = the 8-vector of coefficients of $h_x(t)$, and `ay` = same for $h_y(t)$.
+
+    Mathematically we have solved $V a_x = c_x$ and $V a_y = c_y$. Since $V$ is invertible (nonzero determinant whenever $t_f > 0$), the solution is unique.
+
+    ---
+
+    ## Step 6 — a polynomial-derivative evaluator
+
+    ```python
+    def p(a, k, t):
+        return sum(factorial(n) // factorial(n - k) * a[n] * t ** (n - k) for n in range(k, 8))
+    ```
+
+    This inner function computes $p^{(k)}(t)$ for a polynomial whose coefficients are `a`. It is the Taylor-style formula written above, translated into Python. The comprehension `sum(... for n in range(k, 8))` sums the contributions $\frac{n!}{(n-k)!}\, a_n\, t^{n-k}$ for $n$ from $k$ to $7$.
+
+    We will use it just below to evaluate $h, \dot h, \ddot h, h^{(3)}$, and $h^{(4)}$ at any instant.
+
+    ---
+
+    ## Step 7 — the returned function `fun(t)`
+
+    Now we build the function that will be returned to the user. It does all the on-the-fly reconstruction work.
+
+    ```python
+    def fun(t):
+        hx,  hy  = p(ax, 0, t), p(ay, 0, t)
+        dhx, dhy = p(ax, 1, t), p(ay, 1, t)
+        d2hx, d2hy = p(ax, 2, t), p(ay, 2, t)
+        d3hx, d3hy = p(ax, 3, t), p(ay, 3, t)
+        d4hx, d4hy = p(ax, 4, t), p(ay, 4, t)
+    ```
+
+    We evaluate $h, \dot h, \ddot h, h^{(3)}, h^{(4)}$ — 10 numbers in total (five (x, y) pairs). The first four pairs are needed for `T_inv` to recover the full state. The fifth pair ($h^{(4)}$) is needed to compute $\ddot\theta$.
+
+    ```python
+    x, dx, y, dy, theta, dtheta, z, dz = T_inv(hx, hy, dhx, dhy, d2hx, d2hy, d3hx, d3hy)
+    ```
+
+    We use `T_inv` from before. It takes the eight values $h, \dot h, \ddot h, h^{(3)}$ and returns the eight variables of the full state: position, velocity, angle, angular velocity, auxiliary variable, and its derivative. Half the answer is already there.
+
+    What is still missing: the reactor command $(f, \phi)$. For that we need $\ddot x$ and $\ddot y$ (Newton gives $f_x = M \ddot x$ and $f_y = M(\ddot y + g)$), and therefore we need $\ddot\theta$ to relate $\ddot h$ to $\ddot x, \ddot y$.
+
+    ---
+
+    ## Step 8 — recovering $\ddot\theta$
+
+    ```python
+    s, c = np.sin(theta), np.cos(theta)
+    v2 = M * (c * d4hx + s * d4hy) - 2 * dz * dtheta
+    d2theta = v2 / z
+    ```
+
+    This is the most subtle step, so let's go slowly. We use the relation established earlier:
+    $$h^{(4)} = \frac{1}{M}\, R(\theta - \pi/2) \begin{pmatrix} v_1 - z\dot\theta^2 \\ v_2 + 2\dot z\dot\theta \end{pmatrix}.$$
+
+    We want to isolate $v_2$ (and hence $\ddot\theta = v_2/z$) from $h^{(4)}$. We left-multiply by $M \cdot R(\theta - \pi/2)^{-1}$. The inverse matrix is:
+    $$R(\theta - \pi/2)^{-1} = \begin{pmatrix} \sin\theta & -\cos\theta \\ \cos\theta & \sin\theta \end{pmatrix}.$$
+
+    The second row of this matrix, applied to $h^{(4)} = (h^{(4)}_x, h^{(4)}_y)$, gives $\cos\theta \cdot h^{(4)}_x + \sin\theta \cdot h^{(4)}_y$. Multiplying by $M$ and subtracting $2\dot z\dot\theta$ recovers $v_2$:
+    $$v_2 = M\big(\cos\theta \cdot h^{(4)}_x + \sin\theta \cdot h^{(4)}_y\big) - 2\dot z\dot\theta.$$
+
+    That is exactly the line `v2 = M * (c * d4hx + s * d4hy) - 2 * dz * dtheta`.
+
+    Then $\ddot\theta = v_2/z$.
+
+    ---
+
+    ## Step 9 — reconstructing $\ddot x$ and $\ddot y$
+
+    ```python
+    d2x = d2hx + (l / 6) * (c * d2theta - s * dtheta ** 2)
+    d2y = d2hy + (l / 6) * (s * d2theta + c * dtheta ** 2)
+    ```
+
+    Recall the calculation of $\ddot h$:
+    $$\ddot h_x = \ddot x + (\ell/6) \sin\theta \cdot \dot\theta^2 - (\ell/6) \cos\theta \cdot \ddot\theta,$$
+    $$\ddot h_y = \ddot y - (\ell/6) \cos\theta \cdot \dot\theta^2 - (\ell/6) \sin\theta \cdot \ddot\theta.$$
+
+    We invert to get $\ddot x$ and $\ddot y$:
+    $$\ddot x = \ddot h_x + (\ell/6)\big(\cos\theta \cdot \ddot\theta - \sin\theta \cdot \dot\theta^2\big),$$
+    $$\ddot y = \ddot h_y + (\ell/6)\big(\sin\theta \cdot \ddot\theta + \cos\theta \cdot \dot\theta^2\big).$$
+
+    These are literally the two Python lines.
+
+    ---
+
+    ## Step 10 — Newton for $(f_x, f_y)$
+
+    ```python
+    fx, fy = M * d2x, M * (d2y + g)
+    ```
+
+    Newton's equations for the center of mass:
+    $$M \ddot x = f_x \quad \Rightarrow \quad f_x = M \ddot x,$$
+    $$M \ddot y = f_y - Mg \quad \Rightarrow \quad f_y = M(\ddot y + g).$$
+
+    One line, two formulas.
+
+    ---
+
+    ## Step 11 — from $(f_x, f_y)$ to $(f, \phi)$
+
+    ```python
+    f = np.sqrt(fx ** 2 + fy ** 2)
+    phi = np.arctan2(-fx, fy) - theta
+    ```
+
+    We have the reactor force in Cartesian coordinates, but what we ultimately want is its magnitude $f$ and its angle $\phi$ relative to the booster's axis.
+
+    **Magnitude $f$.** Obvious: $f = \sqrt{f_x^2 + f_y^2}$.
+
+    **Angle $\phi$.** Recall from the very beginning of the model:
+    $$f_x = -f\sin(\theta + \phi), \qquad f_y = +f\cos(\theta + \phi).$$
+
+    So the angle $\theta + \phi$ satisfies $\sin(\theta + \phi) = -f_x/f$ and $\cos(\theta + \phi) = f_y/f$. The function `np.arctan2(y, x)` computes the angle whose sine is proportional to `y` and cosine to `x`. Thus:
+    $$\theta + \phi = \arctan2(-f_x,\, f_y).$$
+
+    And $\phi$ is obtained by subtracting $\theta$:
+    $$\phi = \arctan2(-f_x,\, f_y) - \theta.$$
+
+    ---
+
+    ## Step 12 — return everything
+
+    ```python
+            return x, dx, y, dy, theta, dtheta, z, dz, f, phi
+
+        return fun
+    ```
+
+    The function `fun` returns a 10-tuple: the 8 full-state variables plus the command $(f, \phi)$. And `compute` itself returns this function (without calling it — it is a closure that captures `ax`, `ay`, `tf`, and everything computed beforehand).
+
+    ---
+
+    ## Visual recap
+
+    Here is the pipeline at a glance:
+
+    | Stage | Input | Output | Tool |
+    |---|---|---|---|
+    | 1 | Initial and final states $(x, \dot x, y, \dot y, \theta, \dot\theta, z, \dot z)$ | Values of $h, \dot h, \ddot h, h^{(3)}$ at both boundaries | `Tr` |
+    | 2 | These 16 values | Coefficients $a_0, \dots, a_7$ of two polynomials | `np.linalg.solve(V, c)` |
+    | 3 (per $t$) | $t$ | $h(t), \dot h(t), \ddot h(t), h^{(3)}(t), h^{(4)}(t)$ | polynomial evaluation |
+    | 4 | $h, \dot h, \ddot h, h^{(3)}$ | $x, \dot x, y, \dot y, \theta, \dot\theta, z, \dot z$ | `T_inv` |
+    | 5 | $h^{(4)}, \theta, \dot\theta, z, \dot z$ | $\ddot\theta$ | inverting the $h^{(4)} = \ldots$ relation |
+    | 6 | $\ddot h, \theta, \dot\theta, \ddot\theta$ | $\ddot x, \ddot y$ | inverting the $\ddot h$ formula |
+    | 7 | $\ddot x, \ddot y$ | $f_x, f_y$ | Newton |
+    | 8 | $f_x, f_y, \theta$ | $f, \phi$ | Cartesian-to-polar conversion |
+
+    Stages 1 and 2 are done **once** when `compute` is called. Stages 3 to 8 are done **every time** `fun(t)` is called.
+
+    That is all. There is no magic: every line translates an equation we have already established in previous chapters. The function `compute` is just the assembly of `Tr`, `T_inv`, polynomial interpolation, and Newton's laws.
+    """)
+    return
+
+
+@app.cell
+def _(M, T_inv, Tr, factorial, g, l, np):
+    def compute(
+        x_0, dx_0, y_0, dy_0, theta_0, dtheta_0, z_0, dz_0,
+        x_tf, dx_tf, y_tf, dy_tf, theta_tf, dtheta_tf, z_tf, dz_tf,
+        tf,
+    ):
+        H0  = Tr(x_0,  dx_0,  y_0,  dy_0,  theta_0,  dtheta_0,  z_0,  dz_0)
+        Htf = Tr(x_tf, dx_tf, y_tf, dy_tf, theta_tf, dtheta_tf, z_tf, dz_tf)
+
+        cx = np.array([H0[0], H0[2], H0[4], H0[6], Htf[0], Htf[2], Htf[4], Htf[6]])
+        cy = np.array([H0[1], H0[3], H0[5], H0[7], Htf[1], Htf[3], Htf[5], Htf[7]])
+
+        V = np.zeros((8, 8))
+        for k in range(4):
+            V[k, k] = factorial(k)
+            for n in range(k, 8):
+                V[k + 4, n] = (factorial(n) // factorial(n - k)) * tf ** (n - k)
+
+        ax = np.linalg.solve(V, cx)
+        ay = np.linalg.solve(V, cy)
+
+        def p(a, k, t):
+            return sum(factorial(n) // factorial(n - k) * a[n] * t ** (n - k) for n in range(k, 8))
+
+        def fun(t):
+            hx,  hy  = p(ax, 0, t), p(ay, 0, t)
+            dhx, dhy = p(ax, 1, t), p(ay, 1, t)
+            d2hx, d2hy = p(ax, 2, t), p(ay, 2, t)
+            d3hx, d3hy = p(ax, 3, t), p(ay, 3, t)
+            d4hx, d4hy = p(ax, 4, t), p(ay, 4, t)
+
+            x, dx, y, dy, theta, dtheta, z, dz = T_inv(hx, hy, dhx, dhy, d2hx, d2hy, d3hx, d3hy)
+
+            s, c = np.sin(theta), np.cos(theta)
+            v2 = M * (c * d4hx + s * d4hy) - 2 * dz * dtheta
+            d2theta = v2 / z
+
+            d2x = d2hx + (l / 6) * (c * d2theta - s * dtheta ** 2)
+            d2y = d2hy + (l / 6) * (s * d2theta + c * dtheta ** 2)
+
+            fx, fy = M * d2x, M * (d2y + g)
+            f = np.sqrt(fx ** 2 + fy ** 2)
+            phi = np.arctan2(-fx, fy) - theta
+
+            return x, dx, y, dy, theta, dtheta, z, dz, f, phi
+
+        return fun
+
+    return
+
+
+@app.cell
+def _(Tr):
+    Tr(1.0, 2.0, 3.0, 4.0, 0.1, 0.2, -0.3, -0.4)
+    return
+
+
+@app.cell
+def _(Tr, Tr_inv):
+    Tr_inv(*Tr(1.0, 2.0, 3.0, 4.0, 0.1, 0.2, -0.3, -0.4))
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    Pour bien visualiser le calcul
+    \[
+    V a = c
+    \]
+
+    avec
+
+    \[
+    a=
+    \begin{bmatrix}
+    a_0\\
+    a_1\\
+    a_2\\
+    a_3\\
+    a_4\\
+    a_5\\
+    a_6\\
+    a_7
+    \end{bmatrix}
+    \]
+
+    et
+
+    \[
+    c=
+    \begin{bmatrix}
+    h(0)\\
+    \dot h(0)\\
+    \ddot h(0)\\
+    h^{(3)}(0)\\
+    h(t_f)\\
+    \dot h(t_f)\\
+    \ddot h(t_f)\\
+    h^{(3)}(t_f)
+    \end{bmatrix}
+    \]
+
+    La matrice \(V\) est :
+
+    \[
+    V=
+    \begin{bmatrix}
+    1&0&0&0&0&0&0&0\\
+    0&1&0&0&0&0&0&0\\
+    0&0&2&0&0&0&0&0\\
+    0&0&0&6&0&0&0&0\\
+    1&t_f&t_f^2&t_f^3&t_f^4&t_f^5&t_f^6&t_f^7\\
+    0&1&2t_f&3t_f^2&4t_f^3&5t_f^4&6t_f^5&7t_f^6\\
+    0&0&2&6t_f&12t_f^2&20t_f^3&30t_f^4&42t_f^5\\
+    0&0&0&6&24t_f&60t_f^2&120t_f^3&210t_f^4
+    \end{bmatrix}
+    \]
+
+    \[
+    \begin{bmatrix}
+    1&0&0&0&0&0&0&0\\
+    0&1&0&0&0&0&0&0\\
+    0&0&2&0&0&0&0&0\\
+    0&0&0&6&0&0&0&0\\
+    1&t_f&t_f^2&t_f^3&t_f^4&t_f^5&t_f^6&t_f^7\\
+    0&1&2t_f&3t_f^2&4t_f^3&5t_f^4&6t_f^5&7t_f^6\\
+    0&0&2&6t_f&12t_f^2&20t_f^3&30t_f^4&42t_f^5\\
+    0&0&0&6&24t_f&60t_f^2&120t_f^3&210t_f^4
+    \end{bmatrix}
+    \begin{bmatrix}
+    a_0\\
+    a_1\\
+    a_2\\
+    a_3\\
+    a_4\\
+    a_5\\
+    a_6\\
+    a_7
+    \end{bmatrix}
+    =\begin{bmatrix}
+    h(0)\\
+    \dot h(0)\\
+    \ddot h(0)\\
+    h^{(3)}(0)\\
+    h(t_f)\\
+    \dot h(t_f)\\
+    \ddot h(t_f)\\
+    h^{(3)}(t_f)
+    \end{bmatrix}
+    \]
     """)
     return
 
